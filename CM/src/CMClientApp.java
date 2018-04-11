@@ -19,6 +19,7 @@ import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
 import kr.ac.konkuk.ccslab.cm.manager.CMFileTransferManager;
+import kr.ac.konkuk.ccslab.cm.manager.CMStreamingManager;
 import kr.ac.konkuk.ccslab.cm.stub.CMClientStub;
 import kr.ac.konkuk.ccslab.cm.util.CMUtil;
 
@@ -108,6 +109,8 @@ public class CMClientApp {
 				System.out.println("---------------------------------------------------");
 				System.out.println("47: multicast chat in current group");
 				System.out.println("48: get additional blocking socket channel");
+				System.out.println("---------------------------------------------------");
+				System.out.println("61: start video streaming");
 				System.out.println("99: terminate CM");
 				break;
 			case 1: // connect to default server
@@ -262,6 +265,9 @@ public class CMClientApp {
 				break;
 			case 52: // test download previous SNS content
 				testDownloadPreviousSNSContent();
+				break;
+			case 61: // test video streaming
+				testVideoStreaming();
 				break;
 			case 99: // terminate CM
 				testTermination();
@@ -2215,7 +2221,23 @@ public class CMClientApp {
 		
 		return;		
 	}
-	
+	public void testVideoStreaming()
+	{
+		String strVideo = null;
+		String strTarget = null;
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		System.out.println("====== streaming a video");
+		try {
+			System.out.print("Input video name : ");
+			strVideo = br.readLine();
+		} catch (IOException e) {
+			e.printStackTrace();
+			return;
+		}
+				
+		CMStreamingManager.requestFile(strVideo, strTarget, m_clientStub.getCMInfo());
+		return;
+	}
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		CMClientApp client = new CMClientApp();

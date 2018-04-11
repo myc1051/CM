@@ -105,6 +105,7 @@ public class CMInfo {
 	private CMCommInfo m_commInfo;
 	private CMEventInfo m_eventInfo;
 	private CMInteractionInfo m_interactionInfo;
+	private CMStreamingInfo m_streamingInfo;
 	
 	// application event handler
 	private CMEventHandler m_eventHandler;
@@ -118,6 +119,8 @@ public class CMInfo {
 		m_commInfo = new CMCommInfo();
 		m_eventInfo = new CMEventInfo();
 		m_interactionInfo = new CMInteractionInfo();
+		m_streamingInfo = new CMStreamingInfo();
+		
 	}
 	
 	public CMConfigurationInfo getConfigurationInfo()
@@ -153,6 +156,10 @@ public class CMInfo {
 	public CMInteractionInfo getInteractionInfo()
 	{
 		return m_interactionInfo;
+	}
+	public CMStreamingInfo getStreamingInfo()
+	{
+		return m_streamingInfo;
 	}
 	
 	public void setEventHandler(CMEventHandler handler)

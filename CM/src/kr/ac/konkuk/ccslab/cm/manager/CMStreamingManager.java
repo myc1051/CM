@@ -65,14 +65,14 @@ public class CMStreamingManager {
 	
 	public static void terminate(CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		ExecutorService es = fInfo.getExecutorService();
 		es.shutdown();	// need to check
 	}
 	
 	public static void setFilePath(String strFilePath, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		fInfo.setFilePath(strFilePath);
 		return;
 	}
@@ -160,7 +160,7 @@ public class CMStreamingManager {
 	// strFilePath: absolute or relative path to a target file
 	public static void pushFileWithDefChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
 		// get file information (size)
@@ -200,7 +200,7 @@ public class CMStreamingManager {
 	// strFilePath: absolute or relative path to a target file
 	public static void pushFileWithSepChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 
@@ -512,7 +512,7 @@ public class CMStreamingManager {
 	
 	private static void processREQUEST_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
 		if(CMInfo._CM_DEBUG)
@@ -577,7 +577,7 @@ public class CMStreamingManager {
 	
 	private static void processSTART_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
@@ -660,7 +660,7 @@ public class CMStreamingManager {
 		long lFileSize = -1;
 		int nContentID = -1;
 		String strSenderName = null;
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMSendFileInfo sInfo = null;
 		
 		// find the CMSendFileInfo object 
@@ -752,7 +752,7 @@ public class CMStreamingManager {
 	
 	private static void processCONTINUE_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		
 		/*
 		if(CMInfo._CM_DEBUG)
@@ -792,7 +792,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
 		// find info from recv file list
@@ -839,7 +839,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_ACK(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		String strReceiverName = fe.getUserName();
 		String strFileName = fe.getFileName();
 		int nContentID = fe.getContentID();
@@ -883,7 +883,7 @@ public class CMStreamingManager {
 	
 	private static void processREQUEST_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		
 		if(CMInfo._CM_DEBUG)
 		{
@@ -929,7 +929,7 @@ public class CMStreamingManager {
 	
 	private static void processSTART_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
@@ -1082,7 +1082,7 @@ public class CMStreamingManager {
 		long lFileSize = -1;	// file size
 		int nContentID = -1;
 		long lRecvSize = -1;	// received size by the receiver
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMSendFileInfo sInfo = null;
 		
 		// find the CMSendFileInfo object 
@@ -1124,7 +1124,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		boolean bResult = false;
 
@@ -1201,7 +1201,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_CHAN_ACK(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		String strReceiverName = fe.getUserName();
 		String strFileName = fe.getFileName();
 		int nContentID = fe.getContentID();
@@ -1235,7 +1235,7 @@ public class CMStreamingManager {
 	
 	private static void sendSTART_FILE_TRANSFER_CHAN_ACK(CMRecvFileInfo rfInfo, CMInfo cmInfo)
 	{
-		CMFileTransferInfo fInfo = cmInfo.getFileTransferInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 
 		// start a dedicated thread to receive the file
 		Future<CMRecvFileInfo> future = null;
