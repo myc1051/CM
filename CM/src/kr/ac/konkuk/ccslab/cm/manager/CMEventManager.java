@@ -22,6 +22,7 @@ import kr.ac.konkuk.ccslab.cm.event.CMMultiServerEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSNSEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSessionEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMUserEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMVideoEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMCommInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMEventInfo;
@@ -88,6 +89,9 @@ public class CMEventManager {
 		case CMInfo.CM_USER_EVENT:
 			CMUserEvent ue = new CMUserEvent(buf);
 			return ue;
+		case CMInfo.CM_VIDEO_EVENT:
+			CMVideoEvent ve = new CMVideoEvent(buf);
+			return ve;
 		default:
 			System.out.println("CMEventManager.unmarshallEvent(), unknown event type: "+nEventType);
 			return null;

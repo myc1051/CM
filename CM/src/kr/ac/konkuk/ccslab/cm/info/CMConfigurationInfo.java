@@ -39,6 +39,9 @@ public class CMConfigurationInfo {
 	// File transfer scheme
 	private int m_bFileTransferScheme;
 	
+	// Video transfer scheme
+	private int m_bVideoTransferScheme;
+	
 	// Simulation parameter for added transmission delay
 	private int m_nSimTransDelay;
 	
@@ -75,6 +78,7 @@ public class CMConfigurationInfo {
 		
 		m_strFilePath = ".";
 		m_bFileTransferScheme = 0;
+		m_bVideoTransferScheme = 0;
 		m_nSimTransDelay = 0;
 	}
 
@@ -440,6 +444,22 @@ public class CMConfigurationInfo {
 		boolean bScheme = false;
 		
 		if(m_bFileTransferScheme == 0)
+			bScheme = false;
+		else
+			bScheme = true;
+		
+		return bScheme;		
+	}
+	public void setVideoTransferScheme(int bScheme)
+	{
+		m_bVideoTransferScheme = bScheme;
+	}
+	
+	public boolean isVideoTransferScheme()
+	{
+		boolean bScheme = false;
+		
+		if(m_bVideoTransferScheme == 0)
 			bScheme = false;
 		else
 			bScheme = true;

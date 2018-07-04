@@ -13,8 +13,9 @@ import kr.ac.konkuk.ccslab.cm.entity.CMChannelInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMMessage;
 import kr.ac.konkuk.ccslab.cm.entity.CMUser;
 import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMVideoEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
-import kr.ac.konkuk.ccslab.cm.info.CMStreamingInfo;
+import kr.ac.konkuk.ccslab.cm.info.CMVideoInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
 import kr.ac.konkuk.ccslab.cm.thread.CMRecvFileTask;
@@ -25,7 +26,7 @@ public class CMStreamingManager {
 	public static void init(CMInfo cmInfo)
 	{
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		String strPath = confInfo.getFilePath();
 		
 		// if the default directory does not exist, create it.
@@ -56,7 +57,7 @@ public class CMStreamingManager {
 		fInfo.setExecutorService(es);
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.init(), executor service created; # available processors("
+			System.out.println("CMVideoTransferManager.init(), executor service created; # available processors("
 					+nAvailableProcessors+").");
 		}
 				
@@ -65,25 +66,25 @@ public class CMStreamingManager {
 	
 	public static void terminate(CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		ExecutorService es = fInfo.getExecutorService();
 		es.shutdown();	// need to check
 	}
 	
 	public static void setFilePath(String strFilePath, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		fInfo.setFilePath(strFilePath);
 		return;
 	}
 	
-	public static void requestFile(String strFileName, String strFileOwner, CMInfo cmInfo)
+	public static void requestVideo(String strVideoName, String strVideoOwner, CMInfo cmInfo)
 	{
-		requestFile(strFileName, strFileOwner, -1, cmInfo);
+		requestVideo(strVideoName, strVideoOwner, -1, cmInfo);
 		return;
 	}
 	
-	public static void requestFile(String strFileName, String strFileOwner, int nContentID, CMInfo cmInfo)
+	public static void requestVideo(String strVideoName, String strVideoOwner, int nContentID, CMInfo cmInfo)
 	{
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
@@ -91,90 +92,90 @@ public class CMStreamingManager {
 		if(confInfo.getSystemType().equals("CLIENT") && myself.getState() != CMInfo.CM_LOGIN 
 				&& myself.getState() != CMInfo.CM_SESSION_JOIN)
 		{
-			System.err.println("CMFileTransferManager.requestFile(), Client must log in to the default server.");
+			System.err.println("CMStreamingManager.requestVideo(), Client must log in to the default server.");
 			return;
 		}
 		
-		if(confInfo.isFileTransferScheme())
-			requestFileWithSepChannel(strFileName, strFileOwner, nContentID, cmInfo);
+		if(confInfo.isVideoTransferScheme())
+			requestVideoWithSepChannel(strVideoName, strVideoOwner, nContentID, cmInfo);
 		else
-			requestFileWithDefChannel(strFileName, strFileOwner, nContentID, cmInfo);
+			requestVideoWithDefChannel(strVideoName, strVideoOwner, nContentID, cmInfo);
 		return;
 	}
 	
-	public static void requestFileWithDefChannel(String strFileName, String strFileOwner, int nContentID, CMInfo cmInfo)
+	public static void requestVideoWithDefChannel(String strVideoName, String strVideoOwner, int nContentID, CMInfo cmInfo)
 	{
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
-		CMFileEvent fe = new CMFileEvent();
-		fe.setID(CMFileEvent.REQUEST_FILE_TRANSFER);
+		CMVideoEvent fe = new CMVideoEvent();
+		fe.setID(CMVideoEvent.REQUEST_VIDEO_TRANSFER);
 		fe.setUserName(myself.getName());	// requester name
-		fe.setFileName(strFileName);
+		fe.setVideoName(strVideoName);
 		fe.setContentID(nContentID);
-		CMEventManager.unicastEvent(fe, strFileOwner, cmInfo);
+		CMEventManager.unicastEvent(fe, strVideoOwner, cmInfo);
 		
 		fe = null;
 		return;
 	}
 	
-	public static void requestFileWithSepChannel(String strFileName, String strFileOwner, int nContentID, CMInfo cmInfo)
+	public static void requestVideoWithSepChannel(String strVideoName, String strVideoOwner, int nContentID, CMInfo cmInfo)
 	{
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
-		CMFileEvent fe = new CMFileEvent();
-		fe.setID(CMFileEvent.REQUEST_FILE_TRANSFER_CHAN);
+		CMVideoEvent fe = new CMVideoEvent();
+		fe.setID(CMVideoEvent.REQUEST_VIDEO_TRANSFER_CHAN);
 		fe.setUserName(myself.getName());	// requester name
-		fe.setFileName(strFileName);
+		fe.setVideoName(strVideoName);
 		fe.setContentID(nContentID);
-		CMEventManager.unicastEvent(fe, strFileOwner, cmInfo);
+		CMEventManager.unicastEvent(fe, strVideoOwner, cmInfo);
 		
 		fe = null;
 		return;
 	}
 	
 	
-	public static void pushFile(String strFilePath, String strReceiver, CMInfo cmInfo)
+	public static void pushVideo(String strFilePath, String strReceiver, CMInfo cmInfo)
 	{
-		pushFile(strFilePath, strReceiver, -1, cmInfo);
+		pushVideo(strFilePath, strReceiver, -1, cmInfo);
 		return;
 	}
 	
-	public static void pushFile(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	public static void pushVideo(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		if(confInfo.getSystemType().equals("CLIENT") && myself.getState() != CMInfo.CM_LOGIN 
 				&& myself.getState() != CMInfo.CM_SESSION_JOIN)
 		{
-			System.err.println("CMFileTransferManager.pushFile(), Client must log in to the default server.");
+			System.err.println("CMVideoTransferManager.pushVideo(), Client must log in to the default server.");
 			return;
 		}
 		
-		if(confInfo.isFileTransferScheme())
-			pushFileWithSepChannel(strFilePath, strReceiver, nContentID, cmInfo);
+		if(confInfo.isVideoTransferScheme())
+			pushVideoWithSepChannel(strFilePath, strReceiver, nContentID, cmInfo);
 		else
-			pushFileWithDefChannel(strFilePath, strReceiver, nContentID, cmInfo);
+			pushVideoWithDefChannel(strFilePath, strReceiver, nContentID, cmInfo);
 		return;
 	}
 
 	// strFilePath: absolute or relative path to a target file
-	public static void pushFileWithDefChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	public static void pushVideoWithDefChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
 		// get file information (size)
 		File file = new File(strFilePath);
 		if(!file.exists())
 		{
-			System.err.println("CMFileTransferManager.pushFile(), file("+strFilePath+") does not exists.");
+			System.err.println("CMVideoTransferManager.pushVideo(), file("+strFilePath+") does not exists.");
 			return;
 		}
 		long lFileSize = file.length();
 		
 		// add send file information
 		// receiver name, file path, size
-		fInfo.addSendFileInfo(strReceiver, strFilePath, lFileSize, nContentID);
+		fInfo.addSendVideoInfo(strReceiver, strFilePath, lFileSize, nContentID);
 
 		// get my name
 		String strMyName = interInfo.getMyself().getName();
@@ -184,11 +185,11 @@ public class CMStreamingManager {
 		System.out.println("file name: "+strFileName);
 		
 		// start file transfer process
-		CMFileEvent fe = new CMFileEvent();
-		fe.setID(CMFileEvent.START_FILE_TRANSFER);
+		CMVideoEvent fe = new CMVideoEvent();
+		fe.setID(CMVideoEvent.START_VIDEO_TRANSFER);
 		fe.setSenderName(strMyName);
-		fe.setFileName(strFileName);
-		fe.setFileSize(lFileSize);
+		fe.setVideoName(strFileName);
+		fe.setVideoSize(lFileSize);
 		fe.setContentID(nContentID);
 		CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
 
@@ -198,9 +199,9 @@ public class CMStreamingManager {
 	}
 	
 	// strFilePath: absolute or relative path to a target file
-	public static void pushFileWithSepChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	public static void pushVideoWithSepChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 
@@ -227,26 +228,26 @@ public class CMStreamingManager {
 
 		if(sc == null)
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(); "
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); "
 					+ "default blocking TCP socket channel not found!");
 			return;
 		}
 		else if(!sc.isOpen())
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(); "
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); "
 					+ "default blocking TCP socket channel closed!");
 			return;
 		}
 		
 		if(dsc == null)
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(); "
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); "
 					+ "default TCP socket channel not found!");
 			return;
 		}
 		else if(!dsc.isOpen())
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(); "
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); "
 					+ "default TCP socket channel closed!");
 			return;
 		}
@@ -256,26 +257,26 @@ public class CMStreamingManager {
 		File file = new File(strFilePath);
 		if(!file.exists())
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(), file("+strFilePath+") does not exists.");
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(), file("+strFilePath+") does not exists.");
 			return;
 		}
 		long lFileSize = file.length();
 		
 		// add send file information
 		// sender name, receiver name, file path, size, content ID
-		CMSendFileInfo sfInfo = new CMSendFileInfo();
+		CMSendVideoInfo sfInfo = new CMSendVideoInfo();
 		sfInfo.setSenderName(interInfo.getMyself().getName());
 		sfInfo.setReceiverName(strReceiver);
-		sfInfo.setFilePath(strFilePath);
-		sfInfo.setFileSize(lFileSize);
+		sfInfo.setVideoPath(strFilePath);
+		sfInfo.setVideoSize(lFileSize);
 		sfInfo.setContentID(nContentID);
 		sfInfo.setSendChannel(sc);
 		sfInfo.setDefaultChannel(dsc);
-		//boolean bResult = fInfo.addSendFileInfo(strReceiver, strFilePath, lFileSize, nContentID);
-		boolean bResult = fInfo.addSendFileInfo(sfInfo);
+		//boolean bResult = fInfo.addSendVideoInfo(strReceiver, strFilePath, lFileSize, nContentID);
+		boolean bResult = fInfo.addSendVideoInfo(sfInfo);
 		if(!bResult)
 		{
-			System.err.println("CMFileTransferManager.pushFileWithSepChannel(); error for adding the sending file info: "
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); error for adding the sending file info: "
 					+"receiver("+strReceiver+"), file("+strFilePath+"), size("+lFileSize+"), content ID("
 					+nContentID+")!");
 			return;
@@ -285,14 +286,14 @@ public class CMStreamingManager {
 		String strMyName = interInfo.getMyself().getName();
 
 		// get file name
-		String strFileName = getFileNameFromPath(strFilePath);
+		String strVideoName = getVideoNameFromPath(strFilePath);
 		
 		// start file transfer process
-		CMFileEvent fe = new CMFileEvent();
-		fe.setID(CMFileEvent.START_FILE_TRANSFER_CHAN);
+		CMVideoEvent fe = new CMVideoEvent();
+		fe.setID(CMVideoEvent.START_FILE_TRANSFER_CHAN);
 		fe.setSenderName(strMyName);
-		fe.setFileName(strFileName);
-		fe.setFileSize(lFileSize);
+		fe.setVideoName(strFileName);
+		fe.setVideoSize(lFileSize);
 		fe.setContentID(nContentID);
 		CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
 
@@ -512,7 +513,7 @@ public class CMStreamingManager {
 	
 	private static void processREQUEST_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
 		if(CMInfo._CM_DEBUG)
@@ -577,7 +578,7 @@ public class CMStreamingManager {
 	
 	private static void processSTART_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
@@ -660,7 +661,7 @@ public class CMStreamingManager {
 		long lFileSize = -1;
 		int nContentID = -1;
 		String strSenderName = null;
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMSendFileInfo sInfo = null;
 		
 		// find the CMSendFileInfo object 
@@ -752,7 +753,7 @@ public class CMStreamingManager {
 	
 	private static void processCONTINUE_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		
 		/*
 		if(CMInfo._CM_DEBUG)
@@ -792,7 +793,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
 		// find info from recv file list
@@ -839,7 +840,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_ACK(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		String strReceiverName = fe.getUserName();
 		String strFileName = fe.getFileName();
 		int nContentID = fe.getContentID();
@@ -883,7 +884,7 @@ public class CMStreamingManager {
 	
 	private static void processREQUEST_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		
 		if(CMInfo._CM_DEBUG)
 		{
@@ -913,7 +914,7 @@ public class CMStreamingManager {
 		feAck.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feAck, fe.getUserName(), cmInfo);
 		
-		pushFileWithSepChannel(strFullPath, fe.getUserName(), fe.getContentID(), cmInfo);
+		pushVideoWithSepChannel(strFullPath, fe.getUserName(), fe.getContentID(), cmInfo);
 		return;
 	}
 	
@@ -929,7 +930,7 @@ public class CMStreamingManager {
 	
 	private static void processSTART_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
@@ -1082,7 +1083,7 @@ public class CMStreamingManager {
 		long lFileSize = -1;	// file size
 		int nContentID = -1;
 		long lRecvSize = -1;	// received size by the receiver
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMSendFileInfo sInfo = null;
 		
 		// find the CMSendFileInfo object 
@@ -1124,7 +1125,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		boolean bResult = false;
 
@@ -1201,7 +1202,7 @@ public class CMStreamingManager {
 	
 	private static void processEND_FILE_TRANSFER_CHAN_ACK(CMFileEvent fe, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 		String strReceiverName = fe.getUserName();
 		String strFileName = fe.getFileName();
 		int nContentID = fe.getContentID();
@@ -1235,7 +1236,7 @@ public class CMStreamingManager {
 	
 	private static void sendSTART_FILE_TRANSFER_CHAN_ACK(CMRecvFileInfo rfInfo, CMInfo cmInfo)
 	{
-		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMVideoInfo fInfo = cmInfo.getVideoInfo();
 
 		// start a dedicated thread to receive the file
 		Future<CMRecvFileInfo> future = null;

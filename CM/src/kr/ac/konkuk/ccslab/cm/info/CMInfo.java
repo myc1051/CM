@@ -20,6 +20,8 @@ public class CMInfo {
 	public static final int SO_SNDBUF_LEN = 8192;
 	public static final int SO_RCVBUF_LEN = 8192;
 	
+	public static final int VIDEO_BLOCK_LEN = 4092;
+	
 	// big/little endian
 	public static final int CM_BIG_ENDIAN = 0;
 	public static final int CM_LITTLE_ENDIAN = 1;
@@ -39,6 +41,7 @@ public class CMInfo {
 	public static final int CM_INTERACTION_MANAGER = 206;
 	public static final int CM_FILE_MANAGER = 207;
 	public static final int CM_SNS_MANAGER = 208;
+	public static final int CM_VIDEO_MANAGER = 209;
 	
 	public static final int CM_EVENT = 301;
 	public static final int CM_SESSION_EVENT = 302;
@@ -51,6 +54,8 @@ public class CMInfo {
 	public static final int CM_USER_EVENT = 314;
 	public static final int CM_SNS_EVENT = 315;
 	public static final int CM_MULTI_SERVER_EVENT = 316;
+	public static final int CM_VIDEO_EVENT = 317;
+	
 	
 	//public static final int CM_COMM_SOCKET = 401;
 	//public static final int CM_SERVER_SOCKET = 402;
@@ -105,7 +110,7 @@ public class CMInfo {
 	private CMCommInfo m_commInfo;
 	private CMEventInfo m_eventInfo;
 	private CMInteractionInfo m_interactionInfo;
-	private CMStreamingInfo m_streamingInfo;
+	private CMVideoInfo m_videoInfo;
 	
 	// application event handler
 	private CMEventHandler m_eventHandler;
@@ -119,7 +124,7 @@ public class CMInfo {
 		m_commInfo = new CMCommInfo();
 		m_eventInfo = new CMEventInfo();
 		m_interactionInfo = new CMInteractionInfo();
-		m_streamingInfo = new CMStreamingInfo();
+		m_videoInfo = new CMVideoInfo();
 		
 	}
 	
@@ -157,9 +162,9 @@ public class CMInfo {
 	{
 		return m_interactionInfo;
 	}
-	public CMStreamingInfo getStreamingInfo()
+	public CMVideoInfo getVideoInfo()
 	{
-		return m_streamingInfo;
+		return m_videoInfo;
 	}
 	
 	public void setEventHandler(CMEventHandler handler)

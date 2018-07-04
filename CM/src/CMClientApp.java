@@ -2224,7 +2224,7 @@ public class CMClientApp {
 	public void testVideoStreaming()
 	{
 		String strVideo = null;
-		String strTarget = null;
+		String strTarget = "SERVER";
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		System.out.println("====== streaming a video");
 		try {
@@ -2235,7 +2235,8 @@ public class CMClientApp {
 			return;
 		}
 				
-		CMStreamingManager.requestFile(strVideo, strTarget, m_clientStub.getCMInfo());
+		//CMStreamingManager.requestFile(strVideo, strTarget, m_clientStub.getCMInfo());
+		CMStreamingManager.requestVideo(strVideo, strTarget, m_clientStub.getCMInfo());
 		return;
 	}
 	public static void main(String[] args) {

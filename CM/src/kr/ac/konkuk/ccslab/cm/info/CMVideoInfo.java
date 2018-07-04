@@ -8,13 +8,13 @@ import kr.ac.konkuk.ccslab.cm.entity.CMRecvFileInfo;
 
 import java.io.*;
 
-public class CMStreamingInfo {
+public class CMVideoInfo {
 	private String m_strFilePath;
 	private Hashtable<String, CMList<CMSendFileInfo>> m_sendFileHashtable; // key is the receiver name
 	private Hashtable<String, CMList<CMRecvFileInfo>> m_recvFileHashtable; // key is the sender name
 	private ExecutorService m_executorService;
 	
-	public CMStreamingInfo()
+	public CMVideoInfo()
 	{
 		m_strFilePath = null;
 		m_sendFileHashtable = new Hashtable<String, CMList<CMSendFileInfo>>();
@@ -46,7 +46,7 @@ public class CMStreamingInfo {
 	
 	////////// add/remove/find sending file info
 	
-	public boolean addSendFileInfo(String uName, String fPath, long lSize, int nContentID)
+	public boolean addSendVideoInfo(String uName, String fPath, long lSize, int nContentID)
 	{
 		CMSendFileInfo sInfo = null;
 		String strFileName = null;

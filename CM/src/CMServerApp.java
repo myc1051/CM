@@ -42,7 +42,7 @@ public class CMServerApp {
 		int nCommand = -1;
 		while(m_bRun)
 		{
-			System.out.println("Type \"0\" for menu.");
+			System.out.println("Type \"0\" for menu. ");
 			System.out.print("> ");
 			try {
 				strInput = br.readLine();

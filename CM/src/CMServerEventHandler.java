@@ -11,6 +11,7 @@ import kr.ac.konkuk.ccslab.cm.event.CMSNSEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSessionEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMUserEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMUserEventField;
+import kr.ac.konkuk.ccslab.cm.event.CMVideoEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMFileTransferInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
@@ -24,12 +25,14 @@ public class CMServerEventHandler implements CMEventHandler {
 	private CMServerStub m_serverStub;
 	private int m_nCheckCount;	// for internal forwarding simulation
 	private boolean m_bDistFileProc;	// for distributed file processing
+	private boolean m_bDistVideoProc;	// for distributed video processing
 
 	public CMServerEventHandler(CMServerStub serverStub)
 	{
 		m_serverStub = serverStub;
 		m_nCheckCount = 0;
 		m_bDistFileProc = false;
+		m_bDistVideoProc = false;
 	}
 	
 	@Override
@@ -57,6 +60,9 @@ public class CMServerEventHandler implements CMEventHandler {
 			break;
 		case CMInfo.CM_MULTI_SERVER_EVENT:
 			processMultiServerEvent(cme);
+			break;
+		case CMInfo.CM_VIDEO_EVENT:
+			processVideoEvent(cme);
 			break;
 		default:
 			return;
@@ -429,6 +435,115 @@ public class CMServerEventHandler implements CMEventHandler {
 			System.out.println("["+mse.getUserName()+"] requests session information.");
 			break;
 		}
+
+		return;
+	}
+	
+	private void processVideoEvent(CMEvent cme)
+	{
+		CMVideoEvent fe = (CMVideoEvent) cme;
+		switch(fe.getID())
+		{
+		case CMVideoEvent.REQUEST_VIDEO_TRANSFER:
+		case CMVideoEvent.REQUEST_VIDEO_TRANSFER_CHAN:
+			System.out.println("["+fe.getUserName()+"] requests file("+fe.getVideoName()+").");
+			break;
+		case CMVideoEvent.START_VIDEO_TRANSFER:
+		case CMVideoEvent.START_VIDEO_TRANSFER_CHAN:
+			System.out.println("["+fe.getSenderName()+"] is about to send file("+fe.getVideoName()+").");
+			break;
+		case CMVideoEvent.END_VIDEO_TRANSFER:
+		case CMVideoEvent.END_VIDEO_TRANSFER_CHAN:
+			System.out.println("["+fe.getSenderName()+"] completes to send file("+fe.getVideoName()+", "
+					+fe.getVideoSize()+" Bytes).");
+			String strVideo = fe.getVideoName();
+			if(m_bDistVideoProc)
+			{
+				processVideo(fe.getSenderName(), strVideo);
+				m_bDistVideoProc = false;
+			}
+			break;
+		case CMVideoEvent.REQUEST_DIST_VIDEO_PROC:
+			System.out.println("["+fe.getUserName()+"] requests the distributed file processing.");
+			m_bDistVideoProc = true;
+			break;
+		}
+		return;
+	}
+	
+	private void processVideo(String strSender, String strFile)
+	{ // for temporarily. must modify
+		CMFileTransferInfo fileInfo = m_serverStub.getCMInfo().getFileTransferInfo();
+		String strFullSrcFilePath = null;
+		String strModifiedFile = null;
+		FileInputStream fis = null;
+		FileOutputStream fos = null;
+		byte[] fileBlock = new byte[CMInfo.FILE_BLOCK_LEN];
+
+		long lStartTime = System.currentTimeMillis();
+
+		// change the modified file name
+		strModifiedFile = "m-"+strFile;
+		strModifiedFile = fileInfo.getFilePath()+File.separator+strSender+File.separator+strModifiedFile;
+
+		// stylize the file
+		strFullSrcFilePath = fileInfo.getFilePath()+File.separator+strSender+File.separator+strFile;
+		File srcFile = new File(strFullSrcFilePath);
+		long lFileSize = srcFile.length();
+		long lRemainBytes = lFileSize;
+		int readBytes = 0;
+
+		try {
+			fis = new FileInputStream(strFullSrcFilePath);
+			fos = new FileOutputStream(strModifiedFile);
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		}
+
+		try {
+			
+			while( lRemainBytes > 0 )
+			{
+				if( lRemainBytes >= CMInfo.FILE_BLOCK_LEN )
+				{
+					readBytes = fis.read(fileBlock);
+				}
+				else
+				{
+					readBytes = fis.read(fileBlock, 0, (int)lRemainBytes);
+				}
+			
+				fos.write(fileBlock, 0, readBytes);
+				lRemainBytes -= readBytes;
+			}
+		} catch(IOException e) {
+			e.printStackTrace();
+		} finally {
+			try {
+				fis.close();
+				fos.close();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		// add some process delay here
+		for(long i = 0; i < lFileSize/50; i++)
+		{
+			for(long j = 0; j < lFileSize/50; j++)
+			{
+				// 
+			}
+		}
+
+		long lEndTime = System.currentTimeMillis();
+		System.out.println("processing delay: "+(lEndTime-lStartTime)+" ms");
+
+		// send the modified file to the sender
+		CMFileTransferManager.pushFile(strModifiedFile, strSender, m_serverStub.getCMInfo());
 
 		return;
 	}
