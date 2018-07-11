@@ -7,19 +7,23 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SocketChannel;
 
+import kr.ac.konkuk.ccslab.cm.entity.CMMessage;
 import kr.ac.konkuk.ccslab.cm.entity.CMSendFileInfo;
+import kr.ac.konkuk.ccslab.cm.event.CMBlockingEventQueue;
 import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
-import kr.ac.konkuk.ccslab.cm.manager.CMCommManager;
+//import kr.ac.konkuk.ccslab.cm.manager.CMCommManager;
 import kr.ac.konkuk.ccslab.cm.manager.CMEventManager;
 
 public class CMSendFileTask implements Runnable {
 
 	CMSendFileInfo m_sendFileInfo;
+	CMBlockingEventQueue m_sendQueue;
 	
-	public CMSendFileTask(CMSendFileInfo sendFileInfo)
+	public CMSendFileTask(CMSendFileInfo sendFileInfo, CMBlockingEventQueue sendQueue)
 	{
 		m_sendFileInfo = sendFileInfo;
+		m_sendQueue = sendQueue;
 	}
 	
 	@Override
@@ -34,6 +38,7 @@ public class CMSendFileTask implements Runnable {
 		int nSendBytesSum = -1;
 		ByteBuffer buf = ByteBuffer.allocateDirect(CMInfo.FILE_BLOCK_LEN);
 		CMFileEvent fe = null;
+		boolean bInterrupted = false;
 
 		// open the file
 		try {
@@ -61,8 +66,21 @@ public class CMSendFileTask implements Runnable {
 
 		// main loop for receiving and writing file blocks
 		nSendBytes = 0;
-		while(lSentSize < lFileSize)
+		while( lSentSize < lFileSize && !bInterrupted)
 		{
+			// check for interrupt by other thread
+			if(Thread.currentThread().isInterrupted())
+			{
+				if(CMInfo._CM_DEBUG)
+				{
+					System.out.println("CMSendFileTask.run(); interrupted at the outer loop! file name("
+							+m_sendFileInfo.getFileName()+"), file size("+lFileSize+"), sent size("+lSentSize+").");
+				}
+
+				bInterrupted = true;
+				continue;
+			}
+			
 			// initialize the ByteBuffer
 			buf.clear();
 			
@@ -79,8 +97,19 @@ public class CMSendFileTask implements Runnable {
 			// send a file block
 			buf.flip();
 			nSendBytesSum = 0;
-			while(nSendBytesSum < nReadBytes)
+			while(nSendBytesSum < nReadBytes && !bInterrupted)
 			{
+				if(Thread.currentThread().isInterrupted())
+				{
+					if(CMInfo._CM_DEBUG)
+					{
+						System.out.println("CMSendFileTask.run(); interrupted at the inner loop! file name("
+								+m_sendFileInfo.getFileName()+"), file size("+lFileSize+"), sent size("+lSentSize+").");
+					}
+					bInterrupted = true;
+					continue;
+				}
+				
 				try {
 					nSendBytes = sendSC.write(buf);
 					
@@ -98,17 +127,31 @@ public class CMSendFileTask implements Runnable {
 			
 		} // outer while loop
 
-		// send END_FILE_TRANSFER_CHAN with the default TCP socket channel
-		fe = new CMFileEvent();
-		fe.setID(CMFileEvent.END_FILE_TRANSFER_CHAN);
-		fe.setSenderName(m_sendFileInfo.getSenderName());
-		fe.setFileName(m_sendFileInfo.getFileName());
-		fe.setFileSize(m_sendFileInfo.getFileSize());
-		fe.setContentID(m_sendFileInfo.getContentID());
-		CMCommManager.sendMessage(CMEventManager.marshallEvent(fe), m_sendFileInfo.getDefaultChannel());
+		//if(!bInterrupted)
+		if(lSentSize >= lFileSize)
+		{
+			if(lSentSize > lFileSize)
+			{
+				System.err.println("CMSendFileTask.run(); the receiver("+m_sendFileInfo.getReceiverName()+") already has "
+						+ "a bigger size file("+m_sendFileInfo.getFileName()+"); sender size("+lFileSize
+						+ "), receiver size("+lSentSize+")");
+			}
+			
+			// send END_FILE_TRANSFER_CHAN with the default TCP socket channel
+			fe = new CMFileEvent();
+			fe.setID(CMFileEvent.END_FILE_TRANSFER_CHAN);
+			fe.setSenderName(m_sendFileInfo.getSenderName());
+			fe.setFileName(m_sendFileInfo.getFileName());
+			fe.setFileSize(m_sendFileInfo.getFileSize());
+			fe.setContentID(m_sendFileInfo.getContentID());
+			
+			CMMessage msg = new CMMessage(CMEventManager.marshallEvent(fe), m_sendFileInfo.getDefaultChannel());
+			m_sendQueue.push(msg);
+			//CMCommManager.sendMessage(CMEventManager.marshallEvent(fe), m_sendFileInfo.getDefaultChannel());
+			//fe = null;
+		}
 
 		closeRandomAccessFile(raf);
-		fe = null;
 		
 		return;
 	}

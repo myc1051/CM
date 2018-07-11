@@ -8,12 +8,16 @@ import kr.ac.konkuk.ccslab.cm.entity.CMServer;
 import kr.ac.konkuk.ccslab.cm.entity.CMUser;
 import kr.ac.konkuk.ccslab.cm.event.CMBlockingEventQueue;
 import kr.ac.konkuk.ccslab.cm.event.CMEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMEventSynchronizer;
+import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMMultiServerEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSessionEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMUserEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
+import kr.ac.konkuk.ccslab.cm.info.CMFileTransferInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
+import kr.ac.konkuk.ccslab.cm.info.CMSNSInfo;
 import kr.ac.konkuk.ccslab.cm.manager.CMConfigurator;
 import kr.ac.konkuk.ccslab.cm.manager.CMEventManager;
 import kr.ac.konkuk.ccslab.cm.manager.CMInteractionManager;
@@ -25,12 +29,14 @@ public class CMEventReceiver extends Thread {
 	public CMEventReceiver(CMInfo cmInfo)
 	{
 		m_cmInfo = cmInfo;
-		m_queue = cmInfo.getCommInfo().getBlockingEventQueue();
+		m_queue = cmInfo.getCommInfo().getRecvBlockingEventQueue();
 	}
 	
 	public void run()
 	{
 		CMMessage msg = null;
+		boolean bForwardToApp = true;
+		CMEventSynchronizer eventSync = m_cmInfo.getEventInfo().getEventSynchronizer();
 		
 		if(CMInfo._CM_DEBUG)
 			System.out.println("CMEventReceiver starts to receive events.");
@@ -62,25 +68,46 @@ public class CMEventReceiver extends Thread {
 			}
 			
 			// deliver msg to interaction manager
-			CMInteractionManager.processEvent(msg, m_cmInfo);
-			// deliver msg to stub module
+			bForwardToApp = CMInteractionManager.processEvent(msg, m_cmInfo);
+
+			// check whether the main thread is waiting for an event
 			CMEvent cme = CMEventManager.unmarshallEvent(msg.m_buf);
-			//System.out.println("==Received eType("+cme.getType()+"), eID("+cme.getID()+"), eSize("+msg.m_buf.capacity()+")");
-			m_cmInfo.getEventHandler().processEvent(cme);
-			
-			msg.m_buf = null;	// clear the received ByteBuffer
-			if(cme.getType() == CMInfo.CM_USER_EVENT)
+			if(eventSync.isWaiting() && cme.getType() == eventSync.getWaitingEventType() && 
+					cme.getID() == eventSync.getWaitingEventID())
 			{
-				((CMUserEvent)cme).removeAllEventFields();	// clear all event fields
+				eventSync.setReplyEvent(cme);
+				synchronized(eventSync)
+				{
+					eventSync.notify();
+				}
 			}
-			cme = null;			// clear the event
+			else
+			{
+				if(bForwardToApp)
+				{
+					// deliver msg to stub module
+					m_cmInfo.getEventHandler().processEvent(cme);
+					
+					if(cme.getType() == CMInfo.CM_USER_EVENT)
+					{
+						((CMUserEvent)cme).removeAllEventFields();	// clear all event fields
+					}
+					else if(cme.getType() == CMInfo.CM_FILE_EVENT)
+					{
+						((CMFileEvent)cme).setFileBlock(null);	// clear the file block
+					}
+					cme = null;			// clear the event				
+				}				
+			}
+			msg.m_buf = null;	// clear the received ByteBuffer
+
 		}
 		
 		if(CMInfo._CM_DEBUG)
 			System.out.println("CMEventReceiver is terminated.");
 	}
 	
-	// What about disconnection from a blocking channel?? (not clear)
+	// handle unexpected disconnection with the server or the client
 	private void processUnexpectedDisconnection(SelectableChannel ch)
 	{
 		CMConfigurationInfo confInfo = m_cmInfo.getConfigurationInfo();
@@ -91,6 +118,8 @@ public class CMEventReceiver extends Thread {
 		CMChannelInfo<Integer> chInfo = null;
 		Iterator<CMServer> iterAddServer = null;
 		boolean bFound = false;
+		CMFileTransferInfo fInfo = m_cmInfo.getFileTransferInfo();
+		CMSNSInfo snsInfo = m_cmInfo.getSNSInfo();
 		
 		if(confInfo.getSystemType().equals("CLIENT"))
 		{
@@ -120,11 +149,31 @@ public class CMEventReceiver extends Thread {
 			}
 			else if(chKey.intValue() == 0)	// default channel
 			{
+				// remove all non-blocking channels
 				chInfo.removeAllChannels();
+				// remove all blocking channels
+				interInfo.getDefaultServerInfo().getBlockSocketChannelInfo().removeAllChannels();
+				
 				// For the clarity, the client must be back to initial state (not yet)
+				// stop all the file-transfer threads
+				//List<Runnable> ftList = fInfo.getExecutorService().shutdownNow();
+				// remove all the ongoing file-transfer info about the default server
+				fInfo.removeRecvFileList(interInfo.getDefaultServerInfo().getServerName());
+				fInfo.removeSendFileList(interInfo.getDefaultServerInfo().getServerName());
+				// remove all the ongoing sns related file-transfer info at the client
+				snsInfo.getRecvSNSAttachList().removeAllSNSAttach();
+				// remove all session info
 				interInfo.getSessionList().removeAllElements();
+				// initialize the client state
 				interInfo.getMyself().setState(CMInfo.CM_INIT);
-				System.err.println("The default server is disconnected.");
+				
+				System.err.println("CMEventReceiver.processUndexpectedDisconnection(); The default server is disconnected.");
+				
+				// notify to the application
+				CMSessionEvent se = new CMSessionEvent();
+				se.setID(CMSessionEvent.UNEXPECTED_SERVER_DISCONNECTION);
+				m_cmInfo.getEventHandler().processEvent(se);
+				se = null;
 			}
 			else if(chKey.intValue() > 0) // additional channel
 			{

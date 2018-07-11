@@ -1,7 +1,10 @@
 import java.io.*;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SocketChannel;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.Iterator;
+import java.util.Vector;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -11,7 +14,10 @@ import javax.swing.text.StyleContext;
 import javax.swing.text.StyledDocument;
 
 import kr.ac.konkuk.ccslab.cm.entity.CMGroup;
+import kr.ac.konkuk.ccslab.cm.entity.CMMember;
 import kr.ac.konkuk.ccslab.cm.entity.CMSession;
+import kr.ac.konkuk.ccslab.cm.entity.CMUser;
+import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMFileTransferInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
@@ -40,6 +46,7 @@ public class CMWinServer extends JFrame {
 		setSize(500, 500);
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		
+		setMenus();
 		setLayout(new BorderLayout());
 		
 		m_outTextPane = new JTextPane();
@@ -74,29 +81,7 @@ public class CMWinServer extends JFrame {
 		m_uaSim = new CMSNSUserAccessSimulator();
 
 		// start cm
-		boolean bRet = m_serverStub.startCM();
-		if(!bRet)
-		{
-			printStyledMessage("CM initialization error!\n", "bold");
-		}
-		else
-		{
-			printStyledMessage("Server CM starts.\n", "bold");
-			printMessage("Type \"0\" for menu.\n");					
-			// change button to "stop CM"
-			m_startStopButton.setText("Stop Server CM");
-		}
-		// check if default server or not
-		if(CMConfigurator.isDServer(m_serverStub.getCMInfo()))
-		{
-			setTitle("CM Default Server (\"SERVER\")");
-		}
-		else
-		{
-			setTitle("CM Additional Server (\"?\")");
-		}					
-		m_inTextField.requestFocus();
-		
+		startCM();		
 	}
 	
 	private void addStylesToDocument(StyledDocument doc)
@@ -120,6 +105,129 @@ public class CMWinServer extends JFrame {
 		return m_eventHandler;
 	}
 	
+	public void setMenus()
+	{
+		MyMenuListener menuListener = new MyMenuListener();
+		JMenuBar menuBar = new JMenuBar();
+		
+		JMenu helpMenu = new JMenu("Help");
+		//helpMenu.setMnemonic(KeyEvent.VK_H);
+		JMenuItem showAllMenuItem = new JMenuItem("show all menus");
+		showAllMenuItem.addActionListener(menuListener);
+		showAllMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, ActionEvent.ALT_MASK));
+		
+		helpMenu.add(showAllMenuItem);
+		menuBar.add(helpMenu);
+
+		JMenu cmNetworkMenu = new JMenu("Network Participation");
+		
+		JMenu startStopSubMenu = new JMenu("Start/Stop");
+		JMenuItem startMenuItem = new JMenuItem("start CM");
+		startMenuItem.addActionListener(menuListener);
+		startStopSubMenu.add(startMenuItem);
+		JMenuItem terminateMenuItem = new JMenuItem("terminate CM");
+		terminateMenuItem.addActionListener(menuListener);
+		startStopSubMenu.add(terminateMenuItem);
+
+		cmNetworkMenu.add(startStopSubMenu);
+
+		JMenu multiServerSubMenu = new JMenu("Multi-server");
+		JMenuItem connectDefaultMenuItem = new JMenuItem("connect to default server");
+		connectDefaultMenuItem.addActionListener(menuListener);
+		multiServerSubMenu.add(connectDefaultMenuItem);
+		JMenuItem disconnectDefaultMenuItem = new JMenuItem("disconnect from default server");
+		disconnectDefaultMenuItem.addActionListener(menuListener);
+		multiServerSubMenu.add(disconnectDefaultMenuItem);
+		JMenuItem regDefaultMenuItem = new JMenuItem("register to default server");
+		regDefaultMenuItem.addActionListener(menuListener);
+		multiServerSubMenu.add(regDefaultMenuItem);
+		JMenuItem deregDefaultMenuItem = new JMenuItem("deregister from default server");
+		deregDefaultMenuItem.addActionListener(menuListener);
+		multiServerSubMenu.add(deregDefaultMenuItem);
+		
+		cmNetworkMenu.add(multiServerSubMenu);
+		menuBar.add(cmNetworkMenu);
+		
+		JMenu serviceMenu = new JMenu("Services");
+		
+		JMenu infoSubMenu = new JMenu("Information");
+		JMenuItem showSessionMenuItem = new JMenuItem("show session information");
+		showSessionMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(showSessionMenuItem);
+		JMenuItem showGroupMenuItem = new JMenuItem("show group information");
+		showGroupMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(showGroupMenuItem);
+		JMenuItem showChannelMenuItem = new JMenuItem("show current channels");
+		showChannelMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(showChannelMenuItem);
+		JMenuItem showUsersMenuItem = new JMenuItem("show login users");
+		showUsersMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(showUsersMenuItem);
+		JMenuItem inputThroughputMenuItem = new JMenuItem("test input network throughput");
+		inputThroughputMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(inputThroughputMenuItem);
+		JMenuItem outputThroughputMenuItem = new JMenuItem("test output network throughput");
+		outputThroughputMenuItem.addActionListener(menuListener);
+		infoSubMenu.add(outputThroughputMenuItem);
+		
+		serviceMenu.add(infoSubMenu);
+		
+		JMenu fileTransferSubMenu = new JMenu("File Transfer");
+		JMenuItem setPathMenuItem = new JMenuItem("set file path");
+		setPathMenuItem.addActionListener(menuListener);
+		fileTransferSubMenu.add(setPathMenuItem);
+		JMenuItem reqFileMenuItem = new JMenuItem("request file");
+		reqFileMenuItem.addActionListener(menuListener);
+		fileTransferSubMenu.add(reqFileMenuItem);
+		JMenuItem pushFileMenuItem = new JMenuItem("push file");
+		pushFileMenuItem.addActionListener(menuListener);
+		fileTransferSubMenu.add(pushFileMenuItem);
+		JMenuItem cancelRecvMenuItem = new JMenuItem("cancel receiving file");
+		cancelRecvMenuItem.addActionListener(menuListener);
+		fileTransferSubMenu.add(cancelRecvMenuItem);
+		JMenuItem cancelSendMenuItem = new JMenuItem("cancel sending file");
+		cancelSendMenuItem.addActionListener(menuListener);
+		fileTransferSubMenu.add(cancelSendMenuItem);
+	
+		serviceMenu.add(fileTransferSubMenu);
+		
+		JMenu snsSubMenu = new JMenu("Social Network Service");
+		JMenuItem attachSchemeMenuItem = new JMenuItem("set attachment download scheme");
+		attachSchemeMenuItem.addActionListener(menuListener);
+		snsSubMenu.add(attachSchemeMenuItem);		
+
+		serviceMenu.add(snsSubMenu);
+		
+		JMenu channelSubMenu = new JMenu("Channel");
+		JMenuItem addChannelMenuItem = new JMenuItem("add channel");
+		addChannelMenuItem.addActionListener(menuListener);
+		channelSubMenu.add(addChannelMenuItem);
+		JMenuItem removeChannelMenuItem = new JMenuItem("remove channel");
+		removeChannelMenuItem.addActionListener(menuListener);
+		channelSubMenu.add(removeChannelMenuItem);
+		
+		serviceMenu.add(channelSubMenu);
+		
+		JMenu otherSubMenu = new JMenu("Other CM Tests");
+		JMenuItem configUserAccessSimMenuItem = new JMenuItem("configure SNS user access simulation");
+		configUserAccessSimMenuItem.addActionListener(menuListener);
+		otherSubMenu.add(configUserAccessSimMenuItem);
+		JMenuItem startUserAccessSimMenuItem = new JMenuItem("start SNS user access simulation");
+		startUserAccessSimMenuItem.addActionListener(menuListener);
+		otherSubMenu.add(startUserAccessSimMenuItem);
+		JMenuItem prefetchAccSimMenuItem = new JMenuItem("start SNS user access simulation and measure prefetch accuracy");
+		prefetchAccSimMenuItem.addActionListener(menuListener);
+		otherSubMenu.add(prefetchAccSimMenuItem);
+		JMenuItem recentAccHistorySimMenuItem = new JMenuItem("start and write recent SNS access history simulation to CM DB");
+		recentAccHistorySimMenuItem.addActionListener(menuListener);
+		otherSubMenu.add(recentAccHistorySimMenuItem);
+		
+		serviceMenu.add(otherSubMenu);		
+		menuBar.add(serviceMenu);
+		
+		setJMenuBar(menuBar);
+	}
+	
 	public void processInput(String strInput)
 	{
 		int nCommand = -1;
@@ -134,76 +242,142 @@ public class CMWinServer extends JFrame {
 		switch(nCommand)
 		{
 		case 0:
-			//System.out.println("0: help, 1: session info, 2: group info");
-			//System.out.println("3: set file path, 4: request file, 5: push file");
-			//System.out.println("6: request registration to the default server");
-			//System.out.println("7: request deregistration from the default server");
-			//System.out.println("8: connect to the default server, 9: disconnect from the default server");
-			//System.out.println("99: terminate CM");
-			printMessage("0: help, 1: session info, 2: group info\n");
-			printMessage("3: set file path, 4: request file, 5: push file\n");
-			printMessage("6: request registration to the default server\n");
-			printMessage("7: request deregistration from the default server\n");
-			printMessage("8: connect to the default server, 9: disconnect from the default server\n");
-			printMessage("10: set a scheme for attachment download of SNS content\n");
-			printMessage("11: config user access simulation, 12: start user access simulation\n");
-			printMessage("13: start user access simulation and calculate prefetch precision and recall\n");
-			printMessage("14: configure, simulate, and write recent history to CMDB\n");
-			printMessage("99: terminate CM\n");
+			printAllMenus();
 			break;
+		case 100:
+			startCM();
+			break;
+		case 999:
+			terminateCM();
+			return;
 		case 1: // print session information
 			printSessionInfo();
 			break;
 		case 2: // print selected group information
 			printGroupInfo();
 			break;
-		case 3: // set file path
+		case 3:	// test input network throughput
+			measureInputThroughput();
+			break;
+		case 4:	// test output network throughput
+			measureOutputThroughput();
+			break;
+		case 5:	// print current channels information
+			printCurrentChannelInfo();
+			break;
+		case 6:
+			printLoginUsers();
+			break;
+		case 20: // set file path
 			setFilePath();
 			break;
-		case 4: // request a file
+		case 21: // request a file
 			requestFile();
 			break;
-		case 5: // push a file
+		case 22: // push a file
 			pushFile();
 			break;
-		case 6: // request registration to the default server
+		case 23:	// test cancel receiving a file
+			cancelRecvFile();
+			break;
+		case 24:	// test cancel sending a file
+			cancelSendFile();
+			break;
+		case 30: // request registration to the default server
 			requestServerReg();
 			break;
-		case 7: // request deregistration from the default server
+		case 31: // request deregistration from the default server
 			requestServerDereg();
 			break;
-		case 8: // connect to the default server
+		case 32: // connect to the default server
 			connectToDefaultServer();
 			break;
-		case 9: // disconnect from the default server
+		case 33: // disconnect from the default server
 			disconnectFromDefaultServer();
 			break;
-		case 10: // set a scheme for attachement download of SNS content
+		case 40: // set a scheme for attachement download of SNS content
 			setAttachDownloadScheme();
 			break;
-		case 11:	// configure variables of user access simulation
+		case 50: 	// test add channel
+			addChannel();
+			break;
+		case 51: 	// test remove channel
+			removeChannel();
+			break;	
+		case 101:	// configure variables of user access simulation
 			configureUserAccessSimulation();
 			break;
-		case 12: 	// start user access simulation
+		case 102: 	// start user access simulation
 			startUserAccessSimulation();
 			break;
-		case 13:	// start user access simulation and calculate prefetch precision and recall
+		case 103:	// start user access simulation and calculate prefetch precision and recall
 			startUserAccessSimulationAndCalPrecRecall();
 			break;
-		case 14: 	// configure, simulate and write recent history to CMDB
+		case 104: 	// configure, simulate and write recent history to CMDB
 			writeRecentAccHistoryToDB();
 			break;
-		case 99:
-			testTermination();
-			return;
 		default:
 			//System.out.println("Unknown command.");
-			printMessage("Unknown command.\n");
+			printStyledMessage("Unknown command.\n", "bold");
 			break;
 		}
 	}
 	
-	public void testTermination()
+	public void printAllMenus()
+	{
+		printMessage("---------------------------------- Help\n");
+		printMessage("0: show all menus\n");
+		printMessage("---------------------------------- Start/Stop\n");
+		printMessage("100: start CM, 999: terminate CM\n");
+		printMessage("---------------------------------- Information\n");
+		printMessage("1: show session information, 2: show group information\n");
+		printMessage("3: test input network throughput, 4: test output network throughput\n");
+		printMessage("5: show current channels, 6: show login users\n");
+		printMessage("---------------------------------- File Transfer\n");
+		printMessage("20: set file path, 21: request file, 22: push file\n");
+		printMessage("23: cancel receiving file, 24: cancel sending file\n");
+		printMessage("---------------------------------- Multi-server\n");
+		printMessage("30: register to default server, 31: deregister from default server\n");
+		printMessage("32: connect to default server, 33: disconnect from default server\n");
+		printMessage("---------------------------------- Social Network Service\n");
+		printMessage("40: set attachment download scheme\n");
+		printMessage("---------------------------------- Channel\n");
+		printMessage("50: add channel, 51: remove channel\n");
+		printMessage("---------------------------------- Other CM Tests\n");
+		printMessage("101: configure SNS user access simulation, 102: start SNS user access simulation\n");
+		printMessage("103: start SNS user access simulation and measure prefetch accuracy\n");
+		printMessage("104: start and write recent SNS access history simulation to CM DB\n");
+	}
+	
+	public void startCM()
+	{
+		// start cm
+		boolean bRet = m_serverStub.startCM();
+		if(!bRet)
+		{
+			printStyledMessage("CM initialization error!\n", "bold");
+		}
+		else
+		{
+			printStyledMessage("Server CM starts.\n", "bold");
+			printMessage("Type \"0\" for menu.\n");					
+			// change button to "stop CM"
+			m_startStopButton.setText("Stop Server CM");
+		}
+		// check if default server or not
+		if(CMConfigurator.isDServer(m_serverStub.getCMInfo()))
+		{
+			setTitle("CM Default Server [\"SERVER\"]");
+		}
+		else
+		{
+			setTitle("CM Additional Server [\"?\"]");
+		}					
+		m_inTextField.requestFocus();
+
+	}
+	
+	public void terminateCM()
 	{
 		m_serverStub.terminateCM();
 		printMessage("Server CM terminates.\n");
@@ -326,38 +500,40 @@ public class CMWinServer extends JFrame {
 	
 	public void requestFile()
 	{
+		boolean bReturn = false;
 		String strFileName = null;
 		String strFileOwner = null;
-		/*
-		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-		System.out.println("====== request a file");
-		try {
-			System.out.print("File name: ");
-			strFileName = br.readLine();
-			System.out.print("File owner(user name): ");
-			strFileOwner = br.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		*/
+		String strFileAppendMode = null;
+
 		printMessage("====== request a file\n");
 		JTextField fileNameField = new JTextField();
 		JTextField fileOwnerField = new JTextField();
+		String[] fAppendMode = {"Default", "Overwrite", "Append"};		
+		JComboBox<String> fAppendBox = new JComboBox<String>(fAppendMode);
+
 		Object[] message = {
 		    "File Name:", fileNameField,
-		    "File Owner:", fileOwnerField
+		    "File Owner:", fileOwnerField,
+			"File Append Mode: ", fAppendBox
 		};
 		int option = JOptionPane.showConfirmDialog(null, message, "File Request Input", JOptionPane.OK_CANCEL_OPTION);
 		if (option == JOptionPane.OK_OPTION) 
 		{
 			strFileName = fileNameField.getText();
 			strFileOwner = fileOwnerField.getText();
-			//CMFileTransferManager.requestFile(strFileName, strFileOwner, m_serverStub.getCMInfo());
-			m_serverStub.requestFile(strFileName, strFileOwner);
+			strFileAppendMode = (String) fAppendBox.getSelectedItem();
+			
+			if(strFileAppendMode.equals("Default"))
+				bReturn = m_serverStub.requestFile(strFileName, strFileOwner);
+			else if(strFileAppendMode.equals("Overwrite"))
+				bReturn = m_serverStub.requestFile(strFileName,  strFileOwner, CMInfo.FILE_OVERWRITE);
+			else
+				bReturn = m_serverStub.requestFile(strFileName, strFileOwner, CMInfo.FILE_APPEND);
+			
+			if(!bReturn)
+				printMessage("Request file error! file("+strFileName+"), owner("+strFileOwner+").\n");
 		}
 		
-		//System.out.println("======");
 		printMessage("======\n");
 	}
 
@@ -402,6 +578,50 @@ public class CMWinServer extends JFrame {
 		}
 	
 		printMessage("======\n");
+	}
+
+	public void cancelRecvFile()
+	{
+		String strSender = null;
+		boolean bReturn = false;
+		printMessage("====== cancel receiving a file\n");
+		
+		strSender = JOptionPane.showInputDialog("Input sender name (enter for all senders)");
+		if(strSender.isEmpty())
+			strSender = null;
+		
+		bReturn = m_serverStub.cancelRequestFile(strSender);
+		
+		if(bReturn)
+		{
+			if(strSender == null)
+				strSender = "all senders";
+			printMessage("Successfully requested to cancel receiving a file to ["+strSender+"].\n");
+		}
+		else
+			printMessage("Request failed to cancel receiving a file to ["+strSender+"]!\n");
+		
+		return;
+	}
+	
+	public void cancelSendFile()
+	{
+		String strReceiver = null;
+		boolean bReturn = false;
+		printMessage("====== cancel sending a file\n");
+
+		strReceiver = JOptionPane.showInputDialog("Input receiver name (enter for all receivers)");
+		if(strReceiver.isEmpty())
+			strReceiver = null;
+		
+		bReturn = m_serverStub.cancelPushFile(strReceiver);
+		
+		if(bReturn)
+			printMessage("Successfully requested to cancel sending a file to ["+strReceiver+"]");
+		else
+			printMessage("Request failed to cancel sending a file to ["+strReceiver+"]!");
+		
+		return;
 	}
 
 	public void requestServerReg()
@@ -750,6 +970,541 @@ public class CMWinServer extends JFrame {
 		return;
 	}
 
+	public void measureInputThroughput()
+	{
+		String strTarget = null;
+		float fSpeed = -1; // MBps
+		printMessage("========== test input network throughput\n");
+		
+		strTarget = JOptionPane.showInputDialog("Target node");
+		if(strTarget == null || strTarget.equals("")) 
+			return;
+
+		fSpeed = m_serverStub.measureInputThroughput(strTarget);
+		if(fSpeed == -1)
+			printMessage("Test failed!\n");
+		else
+			printMessage(String.format("Input network throughput from [%s] : %.2f MBps%n", strTarget, fSpeed));
+	}
+	
+	public void measureOutputThroughput()
+	{
+		String strTarget = null;
+		float fSpeed = -1; // MBps
+		printMessage("========== test output network throughput\n");
+		
+		strTarget = JOptionPane.showInputDialog("Target node");
+		if(strTarget == null || strTarget.equals("")) 
+			return;
+
+		fSpeed = m_serverStub.measureOutputThroughput(strTarget);
+		if(fSpeed == -1)
+			printMessage("Test failed!\n");
+		else
+			printMessage(String.format("Output network throughput to [%s] : %.2f MBps%n", strTarget, fSpeed));
+	}
+	
+	public void addChannel()
+	{
+		int nChType = -1;
+		int nChKey = -1; // the channel key for the socket channel
+		String strServerName = null;
+		String strChAddress = null; // the channel key for the multicast address is the (address, port) pair
+		int nChPort = -1; // the channel key for the datagram socket channel, or the multicast port number
+		String strSessionName = null;
+		String strGroupName = null;
+		CMConfigurationInfo confInfo = m_serverStub.getCMInfo().getConfigurationInfo();
+		CMInteractionInfo interInfo = m_serverStub.getCMInfo().getInteractionInfo();
+		boolean result = false;
+		boolean isBlock = false;
+		SocketChannel sc = null;
+		DatagramChannel dc = null;
+		boolean isSyncCall = false;
+		long lDelay = -1;
+				
+		printMessage("====== add additional channel\n");
+		
+		// ask channel type, (server name), channel index (integer greater than 0), addr, port
+		
+		String[] chTypes = {"SocketChannel(not yet supported)", "DatagramChannel", "MulticastChannel"};
+		JComboBox<String> chTypeBox = new JComboBox<String>(chTypes);
+		chTypeBox.setSelectedIndex(1);
+		Object[] message = {
+				"Channel Type: ", chTypeBox
+		};
+		int option = JOptionPane.showConfirmDialog(null, message, "Channel type", JOptionPane.OK_CANCEL_OPTION);
+		if(option != JOptionPane.OK_OPTION) return;
+		nChType = chTypeBox.getSelectedIndex() + 2;
+
+		if(nChType == CMInfo.CM_SOCKET_CHANNEL) // not yet supported
+		{
+			printStyledMessage("add socket channel at the server not supported yet!\n", "bold");
+			return;
+			/*
+			JRadioButton blockRadioButton = new JRadioButton("Blocking Channel");
+			JRadioButton nonBlockRadioButton = new JRadioButton("NonBlocking Channel");
+			nonBlockRadioButton.setSelected(true);
+			ButtonGroup bGroup = new ButtonGroup();
+			bGroup.add(blockRadioButton);
+			bGroup.add(nonBlockRadioButton);
+			String[] syncAsync = {"synchronous call", "asynchronous call"};
+			JComboBox syncAsyncComboBox = new JComboBox(syncAsync);
+			syncAsyncComboBox.setSelectedIndex(1); // default value is asynchronous call
+			
+			JTextField chIndexField = new JTextField();
+			JTextField strServerField = new JTextField();
+			Object[] scMessage = {
+					"", blockRadioButton,
+					"", nonBlockRadioButton,
+					"syncronous or asynchronous call", syncAsyncComboBox,
+					"Channel key (> 0 for nonblocking ch, >=0 for blocking ch)", chIndexField,
+					"Server name(empty for the default server)", strServerField
+			};
+			
+			int scResponse = JOptionPane.showConfirmDialog(null, scMessage, "Socket Channel", JOptionPane.OK_CANCEL_OPTION);
+
+			if(scResponse != JOptionPane.OK_OPTION) return;
+			nChKey = Integer.parseInt(chIndexField.getText());
+
+			if(blockRadioButton.isSelected()) isBlock = true;
+			else isBlock = false;
+			
+			if(!isBlock && nChKey <= 0)
+			{
+				printMessage("testAddChannel(), invalid nonblocking socket channel key ("+nChKey+")!\n");
+				return;
+			}
+			else if(isBlock && nChKey < 0)
+			{
+				printMessage("testAddChannel(), invalid blocking socket channel key ("+nChKey+")!\n");
+				return;
+			}
+			
+			if(syncAsyncComboBox.getSelectedIndex() == 0)
+				isSyncCall = true;
+			else
+				isSyncCall = false;
+			
+			strServerName = strServerField.getText();
+			if(strServerName == null || strServerName.equals(""))
+				strServerName = "SERVER"; // default server name
+			*/
+		}
+		else if(nChType == CMInfo.CM_DATAGRAM_CHANNEL)
+		{
+			JRadioButton blockRadioButton = new JRadioButton("Blocking Channel");
+			JRadioButton nonBlockRadioButton = new JRadioButton("NonBlocking Channel");
+			nonBlockRadioButton.setSelected(true);
+			ButtonGroup bGroup = new ButtonGroup();
+			bGroup.add(blockRadioButton);
+			bGroup.add(nonBlockRadioButton);
+			
+			JTextField chIndexField = new JTextField();
+
+			Object[] scMessage = {
+					"", blockRadioButton,
+					"", nonBlockRadioButton,
+					"Port number (key of the datagram channel)", chIndexField
+			};
+			
+			int scResponse = JOptionPane.showConfirmDialog(null, scMessage, "Add Datagram Channel", JOptionPane.OK_CANCEL_OPTION);
+			if(scResponse != JOptionPane.OK_OPTION) return;
+
+			try {
+				nChPort = Integer.parseInt(chIndexField.getText());
+			}catch(NumberFormatException e) {
+				printMessage("The channel UDP port must be a number !\n");
+				return;
+			}
+
+			if(blockRadioButton.isSelected()) isBlock = true;
+			else isBlock = false;
+		}
+		else if(nChType == CMInfo.CM_MULTICAST_CHANNEL)
+		{
+			JTextField snameField = new JTextField();
+			JTextField gnameField = new JTextField();
+			JTextField chAddrField = new JTextField();
+			JTextField chPortField = new JTextField();
+			Object[] multicastMessage = {
+					"Target Session Name: ", snameField,
+					"Target Group Name: ", gnameField,
+					"Channel Multicast Address: ", chAddrField,
+					"Channel Multicast Port: ", chPortField
+			};
+			int multicastResponse = JOptionPane.showConfirmDialog(null, multicastMessage, "Additional Multicast Input",
+					JOptionPane.OK_CANCEL_OPTION);
+			if(multicastResponse != JOptionPane.OK_OPTION) return;
+			
+			strSessionName = snameField.getText();
+			strGroupName = gnameField.getText();
+			strChAddress = chAddrField.getText();
+			nChPort = Integer.parseInt(chPortField.getText());			
+		}
+	    
+		switch(nChType)
+		{
+		/*
+		case CMInfo.CM_SOCKET_CHANNEL:
+			if(isBlock)
+			{
+				if(isSyncCall)
+				{
+					sc = m_clientStub.syncAddBlockSocketChannel(nChKey, strServerName);
+					lDelay = System.currentTimeMillis() - m_eventHandler.getStartTime();
+					if(sc != null)
+					{
+						printMessage("Successfully added a blocking socket channel both "
+								+ "at the client and the server: key("+nChKey+"), server("+strServerName+")\n");
+						printMessage("return delay: "+lDelay+" ms.\n");
+					}
+					else
+						printMessage("Failed to add a blocking socket channel both at "
+								+ "the client and the server: key("+nChKey+"), server("+strServerName+")\n");					
+				}
+				else
+				{
+					m_eventHandler.setStartTime(System.currentTimeMillis());
+					result = m_clientStub.addBlockSocketChannel(nChKey, strServerName);
+					lDelay = System.currentTimeMillis() - m_eventHandler.getStartTime();
+					if(result)
+					{
+						printMessage("Successfully added a blocking socket channel at the client and "
+								+"requested to add the channel info to the server: key("+nChKey+"), server("
+								+strServerName+")\n");
+						printMessage("return delay: "+lDelay+" ms.\n");
+					}
+					else
+						printMessage("Failed to add a blocking socket channel at the client or "
+								+"failed to request to add the channel info to the server: key("+nChKey
+								+"), server("+strServerName+")\n");
+				}
+			}
+			else
+			{
+				if(isSyncCall)
+				{
+					sc = m_clientStub.syncAddNonBlockSocketChannel(nChKey, strServerName);
+					if(sc != null)
+						printMessage("Successfully added a nonblocking socket channel both at the client "
+								+ "and the server: key("+nChKey+"), server("+strServerName+")\n");
+					else
+						printMessage("Failed to add a nonblocking socket channel both at the client "
+								+ "and the server: key("+nChKey+") to server("+strServerName+")\n");														
+				}
+				else
+				{
+					result = m_clientStub.addNonBlockSocketChannel(nChKey, strServerName);
+					if(result)
+						printMessage("Successfully added a nonblocking socket channel at the client and "
+								+ "requested to add the channel info to the server: key("+nChKey+"), server("
+								+strServerName+")\n");
+					else
+						printMessage("Failed to add a nonblocking socket channe at the client or "
+								+ "failed to request to add the channel info to the server: key("+nChKey
+								+") to server("+strServerName+")\n");									
+				}
+			}
+				
+			break;
+		*/
+		case CMInfo.CM_DATAGRAM_CHANNEL:
+			if(isBlock)
+			{
+				dc = m_serverStub.addBlockDatagramChannel(nChPort);
+				if(dc != null)
+					printMessage("Successfully added a blocking datagram socket channel: port("+nChPort+")\n");
+				else
+					printMessage("Failed to add a blocking datagram socket channel: port("+nChPort+")\n");								
+			}
+			else
+			{
+				dc = m_serverStub.addNonBlockDatagramChannel(nChPort);
+				if(dc != null)
+					printMessage("Successfully added a non-blocking datagram socket channel: port("+nChPort+")\n");
+				else
+					printMessage("Failed to add a non-blocking datagram socket channel: port("+nChPort+")\n");				
+			}
+						
+			break;
+		case CMInfo.CM_MULTICAST_CHANNEL:
+			result = m_serverStub.addMulticastChannel(strSessionName, strGroupName, strChAddress, nChPort);
+			if(result)
+			{
+				printMessage("Successfully added a multicast channel: session("+strSessionName+"), group("
+						+strGroupName+"), address("+strChAddress+"), port("+nChPort+")\n");
+			}
+			else
+			{
+				printMessage("Failed to add a multicast channel: session("+strSessionName+"), group("
+						+strGroupName+"), address("+strChAddress+"), port("+nChPort+")\n");
+			}
+			break;
+		default:
+			printMessage("Channel type is incorrect!\n");
+			break;
+		}
+		
+		printMessage("======\n");
+	}
+	
+	public void removeChannel()
+	{
+		int nChType = -1;
+		int nChKey = -1;
+		int nChPort = -1;
+		String strChAddress = null;
+		String strServerName = null;
+		String strSessionName = null;
+		String strGroupName = null;
+		CMConfigurationInfo confInfo = m_serverStub.getCMInfo().getConfigurationInfo();
+		CMInteractionInfo interInfo = m_serverStub.getCMInfo().getInteractionInfo();
+		boolean result = false;
+		boolean isBlock = false;
+		boolean isSyncCall = false;
+		long lDelay = 0;
+		
+		printMessage("====== remove additional channel\n");
+				
+		String[] chTypes = {"SocketChannel(not yet supported)", "DatagramChannel", "MulticastChannel"};
+		JComboBox<String> chTypeBox = new JComboBox<String>(chTypes);
+		chTypeBox.setSelectedIndex(1);
+		Object[] message = {
+				"Channel Type: ", chTypeBox
+		};
+		int option = JOptionPane.showConfirmDialog(null, message, "Removal of Additional Channel", JOptionPane.OK_CANCEL_OPTION);
+		if(option != JOptionPane.OK_OPTION) return;
+		nChType = chTypeBox.getSelectedIndex() + 2;
+
+		if(nChType == CMInfo.CM_SOCKET_CHANNEL)
+		{
+			printStyledMessage("remove socket channel not yet supported!", "bold");
+			return;
+			/*
+			JRadioButton blockRadioButton = new JRadioButton("Blocking Channel");
+			JRadioButton nonBlockRadioButton = new JRadioButton("NonBlocking Channel");
+			nonBlockRadioButton.setSelected(true);
+			ButtonGroup bGroup = new ButtonGroup();
+			bGroup.add(blockRadioButton);
+			bGroup.add(nonBlockRadioButton);
+			String syncAsync[] = {"synchronous call", "asynchronous call"};
+			JComboBox syncAsyncComboBox = new JComboBox(syncAsync);
+			syncAsyncComboBox.setSelectedIndex(1);	//default value is asynchronous call
+
+			JTextField chIndexField = new JTextField();
+			JTextField strServerField = new JTextField();
+			Object[] scMessage = {
+					"", blockRadioButton,
+					"", nonBlockRadioButton,
+					"Synchronous or asynchronous call", syncAsyncComboBox,
+					"Channel key (> 0 for nonblocking ch, >=0 for blocking ch)", chIndexField,
+					"Server name(empty for the default server)", strServerField
+			};
+			
+			int scResponse = JOptionPane.showConfirmDialog(null, scMessage, "Socket Channel", JOptionPane.OK_CANCEL_OPTION);
+
+			if(scResponse != JOptionPane.OK_OPTION) return;
+			nChKey = Integer.parseInt(chIndexField.getText());
+
+			if(blockRadioButton.isSelected()) isBlock = true;
+			else isBlock = false;
+
+			if(!isBlock && nChKey <= 0)
+			{
+				printMessage("testRemoveChannel(), invalid nonblocking socket channel key ("+nChKey+")!\n");
+				return;
+			}
+			else if(isBlock && nChKey < 0)
+			{
+				printMessage("testRemoveChannel(), invalid blocking socket channel key ("+nChKey+")!\n");
+				return;
+			}
+			
+			if(syncAsyncComboBox.getSelectedIndex() == 0)
+				isSyncCall = true;
+			else
+				isSyncCall = false;
+			
+			strServerName = strServerField.getText();
+			if(strServerName == null || strServerName.equals(""))
+				strServerName = "SERVER"; // default server name
+			*/
+		}
+		else if(nChType == CMInfo.CM_DATAGRAM_CHANNEL)
+		{
+			JRadioButton blockRadioButton = new JRadioButton("Blocking Channel");
+			JRadioButton nonBlockRadioButton = new JRadioButton("NonBlocking Channel");
+			nonBlockRadioButton.setSelected(true);
+			ButtonGroup bGroup = new ButtonGroup();
+			bGroup.add(blockRadioButton);
+			bGroup.add(nonBlockRadioButton);
+
+			JTextField chIndexField = new JTextField();
+			Object[] scMessage = {
+					"", blockRadioButton,
+					"", nonBlockRadioButton,
+					"Port number (key of the datagram channel):", chIndexField
+			};
+			
+			int scResponse = JOptionPane.showConfirmDialog(null, scMessage, "Remove Datagram Channel", 
+					JOptionPane.OK_CANCEL_OPTION);
+
+			if(scResponse != JOptionPane.OK_OPTION) return;
+			try {
+				nChPort = Integer.parseInt(chIndexField.getText());				
+			}catch(NumberFormatException e){
+				printMessage("The channel UDP port must be a number!\n");
+				return;
+			}
+	
+			if(blockRadioButton.isSelected()) isBlock = true;
+			else isBlock = false;
+
+		}
+		else if(nChType == CMInfo.CM_MULTICAST_CHANNEL)
+		{
+			JTextField snameField = new JTextField();
+			JTextField gnameField = new JTextField();
+			JTextField chAddrField = new JTextField();
+			JTextField chPortField = new JTextField();
+			Object[] sgMessage = { 
+					"Target Session Name: ", snameField,
+					"Target Group Name: ", gnameField,
+					"Channel Multicast Address: ", chAddrField,
+					"Channel Multicast Port: ", chPortField
+			};
+			int sgOption = JOptionPane.showConfirmDialog(null, sgMessage, "Target Session and Group", JOptionPane.OK_CANCEL_OPTION);
+			if(sgOption != JOptionPane.OK_OPTION) return;
+			strSessionName = snameField.getText();
+			strGroupName = gnameField.getText();
+			strChAddress = chAddrField.getText();
+			nChPort = Integer.parseInt(chPortField.getText());			
+		}
+
+		switch(nChType)
+		{
+		/*
+		case CMInfo.CM_SOCKET_CHANNEL:
+			if(isBlock)
+			{
+				if(isSyncCall)
+				{
+					m_eventHandler.setStartTime(System.currentTimeMillis());
+					result = m_clientStub.syncRemoveBlockSocketChannel(nChKey, strServerName);
+					lDelay = System.currentTimeMillis() - m_eventHandler.getStartTime();
+					if(result)
+					{
+						printMessage("Successfully removed a blocking socket channel both "
+								+ "at the client and the server: key("+nChKey+"), server ("+strServerName+")\n");
+						printMessage("return delay: "+lDelay+" ms.\n");
+					}
+					else
+						printMessage("Failed to remove a blocking socket channel both at the client "
+								+ "and the server: key("+nChKey+"), server ("+strServerName+")\n");					
+				}
+				else
+				{
+					m_eventHandler.setStartTime(System.currentTimeMillis());
+					result = m_clientStub.removeBlockSocketChannel(nChKey, strServerName);
+					lDelay = System.currentTimeMillis() - m_eventHandler.getStartTime();
+					if(result)
+					{
+						printMessage("Successfully removed a blocking socket channel at the client and " 
+								+ "requested to remove it at the server: key("+nChKey+"), server("+strServerName+")\n");
+						printMessage("return delay: "+lDelay+" ms.\n");
+					}
+					else
+						printMessage("Failed to remove a blocking socket channel at the client or "
+								+ "failed to request to remove it at the server: key("+nChKey+"), server("
+								+strServerName+")\n");
+				}
+			}
+			else
+			{
+				result = m_clientStub.removeNonBlockSocketChannel(nChKey, strServerName);
+				if(result)
+					printMessage("Successfully removed a nonblocking socket channel: key("+nChKey
+							+"), server("+strServerName+")\n");
+				else
+					printMessage("Failed to remove a nonblocing socket channel: key("+nChKey
+							+"), server("+strServerName+")\n");			
+			}
+	
+			break;
+		*/
+		case CMInfo.CM_DATAGRAM_CHANNEL:
+			if(isBlock)
+			{
+				result = m_serverStub.removeBlockDatagramChannel(nChPort);
+				if(result)
+					printMessage("Successfully removed a blocking datagram socket channel: port("+nChPort+")\n");
+				else
+					printMessage("Failed to remove a blocking datagram socket channel: port("+nChPort+")\n");								
+			}
+			else
+			{
+				result = m_serverStub.removeNonBlockDatagramChannel(nChPort);
+				if(result)
+					printMessage("Successfully removed a non-blocking datagram socket channel: port("+nChPort+")\n");
+				else
+					printMessage("Failed to remove a non-blocking datagram socket channel: port("+nChPort+")\n");				
+			}
+			
+			break;
+		case CMInfo.CM_MULTICAST_CHANNEL:
+			result = m_serverStub.removeAdditionalMulticastChannel(strSessionName, strGroupName, strChAddress, nChPort);
+			if(result)
+			{
+				printMessage("Successfully removed a multicast channel: session("+strSessionName+"), group("
+						+strGroupName+"), address("+strChAddress+"), port("+nChPort+")\n");
+			}
+			else
+			{
+				printMessage("Failed to remove a multicast channel: session("+strSessionName+"), group("
+						+strGroupName+"), address("+strChAddress+"), port("+nChPort+")\n");
+			}
+			break;
+		default:
+			printMessage("Channel type is incorrect!\n");
+			break;
+		}
+		
+		printMessage("======\n");		
+	}
+	
+	public void printCurrentChannelInfo()
+	{
+		printMessage("========== print current channel info\n");
+		String strChannels = m_serverStub.getCurrentChannelInfo();
+		printMessage(strChannels);
+	}
+	
+	public void printLoginUsers()
+	{
+		printMessage("========== print login users\n");
+		CMMember loginUsers = m_serverStub.getLoginUsers();
+		if(loginUsers == null)
+		{
+			printStyledMessage("The login users list is null!\n", "bold");
+			return;
+		}
+		
+		printMessage("Currently ["+loginUsers.getMemberNum()+"] users are online.\n");
+		Vector<CMUser> loginUserVector = loginUsers.getAllMembers();
+		Iterator<CMUser> iter = loginUserVector.iterator();
+		int nPrintCount = 0;
+		while(iter.hasNext())
+		{
+			CMUser user = iter.next();
+			printMessage(user.getName()+" ");
+			nPrintCount++;
+			if((nPrintCount % 10) == 0)
+			{
+				printMessage("\n");
+				nPrintCount = 0;
+			}
+		}
+	}
 
 	public void printMessage(String strText)
 	{
@@ -876,6 +1631,91 @@ public class CMWinServer extends JFrame {
 				printMessage("Server CM terminates.\n");
 				// change button to "start CM"
 				button.setText("Start Server CM");
+			}
+		}
+	}
+	
+	public class MyMenuListener implements ActionListener {
+		public void actionPerformed(ActionEvent e)
+		{
+			String strMenu = e.getActionCommand();
+			switch(strMenu)
+			{
+			case "show all menus":
+				printAllMenus();
+				break;
+			case "start CM":
+				startCM();
+				break;
+			case "terminate CM":
+				terminateCM();
+				break;
+			case "connect to default server":
+				connectToDefaultServer();
+				break;
+			case "disconnect from default server":
+				disconnectFromDefaultServer();
+				break;
+			case "register to default server":
+				requestServerReg();
+				break;
+			case "deregister from default server":
+				requestServerDereg();
+				break;
+			case "show session information":
+				printSessionInfo();
+				break;
+			case "show group information":
+				printGroupInfo();
+				break;
+			case "show current channels":
+				printCurrentChannelInfo();
+				break;
+			case "show login users":
+				printLoginUsers();
+				break;
+			case "test input network throughput":
+				measureInputThroughput();
+				break;
+			case "test output network throughput":
+				measureOutputThroughput();
+				break;
+			case "set file path":
+				setFilePath();
+				break;
+			case "request file":
+				requestFile();
+				break;
+			case "push file":
+				pushFile();
+				break;
+			case "cancel receiving file":
+				cancelRecvFile();
+				break;
+			case "cancel sending file":
+				cancelSendFile();
+				break;
+			case "set attachment download scheme":
+				setAttachDownloadScheme();
+				break;
+			case "add channel":
+				addChannel();
+				break;
+			case "remove channel":
+				removeChannel();
+				break;
+			case "configure SNS user access simulation":
+				configureUserAccessSimulation();
+				break;
+			case "start SNS user access simulation":
+				startUserAccessSimulation();
+				break;
+			case "start SNS user access simulation and measure prefetch accuracy":
+				startUserAccessSimulationAndCalPrecRecall();
+				break;
+			case "start and write recent SNS access history simulation to CM DB":
+				writeRecentAccHistoryToDB();
+				break;
 			}
 		}
 	}

@@ -31,6 +31,7 @@ public class CMRecvFileTask implements Runnable {
 		int nWrittenBytes = -1;
 		int nWrittenBytesSum = -1;
 		ByteBuffer buf = ByteBuffer.allocateDirect(CMInfo.FILE_BLOCK_LEN);
+		boolean bInterrupted = false;
 		
 		// open the file
 		try {
@@ -58,8 +59,20 @@ public class CMRecvFileTask implements Runnable {
 		
 		// main loop for receiving and writing file blocks
 		nRecvBytes = 0;
-		while(lRecvSize < lFileSize)
+		while(lRecvSize < lFileSize && !bInterrupted)
 		{
+			// check for interrupt by other thread
+			if(Thread.currentThread().isInterrupted())
+			{
+				if(CMInfo._CM_DEBUG)
+				{
+					System.out.println("CMRecvFileTask.run(); interrupted at the outer loop! file name("
+							+m_recvFileInfo.getFileName()+"), file size("+lFileSize+"), recv size("+lRecvSize+").");
+				}
+				bInterrupted = true;
+				continue;
+			}
+			
 			// initialize the ByteBuffer
 			buf.clear();
 			
@@ -76,8 +89,19 @@ public class CMRecvFileTask implements Runnable {
 			// write the received block to the file
 			buf.flip();
 			nWrittenBytesSum = 0;
-			while(nWrittenBytesSum < nRecvBytes)
+			while(nWrittenBytesSum < nRecvBytes && !bInterrupted)
 			{
+				if(Thread.currentThread().isInterrupted())
+				{
+					if(CMInfo._CM_DEBUG)
+					{
+						System.out.println("CMRecvFileTask.run(); interrupted at the inner loop! file name("
+								+m_recvFileInfo.getFileName()+"), file size("+lFileSize+"), recv size("+lRecvSize+").");						
+					}
+					bInterrupted = true;
+					continue;
+				}
+				
 				try {
 					nWrittenBytes = fc.write(buf);
 					
