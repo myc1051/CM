@@ -35,7 +35,12 @@ public class CMConfigurator {
 		}
 				
 		// default download directory
-		confInfo.setFilePath(CMConfigurator.getConfiguration(fName, "FILE_PATH"));
+		String strFilePath = CMConfigurator.getConfiguration(fName, "FILE_PATH");
+		if(strFilePath == null) strFilePath = "."; // if no default path is set, it is set to the current working directory
+		confInfo.setFilePath(strFilePath);
+		
+		// default append mode for the file transfer
+		confInfo.setFileAppendScheme(Byte.parseByte(CMConfigurator.getConfiguration(fName, "FILE_APPEND_SCHEME")));
 		
 		// added delay value for the simulation of transmission delay
 		confInfo.setSimTransDelay(Integer.parseInt(CMConfigurator.getConfiguration(fName, "SIM_TRANS_DELAY")));
@@ -95,6 +100,7 @@ public class CMConfigurator {
 			System.out.println("MULTICAST_PORT: "+confInfo.getMulticastPort());
 			System.out.println("MY_ADDR: "+confInfo.getMyAddress());
 			System.out.println("FILE_PATH: "+confInfo.getFilePath());
+			System.out.println("FILE_APPEND_SCHEME: "+confInfo.isFileAppendScheme());
 			System.out.println("SIM_TRANS_DELAY: "+confInfo.getSimTransDelay());
 			if( confInfo.getSystemType().equals("SERVER") )
 			{

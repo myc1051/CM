@@ -172,5 +172,28 @@ public class CMChannelInfo<K> {
 		
 		return ret;
 	}
+	
+	public int getSize()
+	{
+		return m_chMap.size();
+	}
+	
+	@Override
+	public String toString()
+	{
+		StringBuffer sb = null;
+		if(getSize() == 0) return null;
+		
+		sb = new StringBuffer();
+		Set<Entry<K, SelectableChannel>> hashMapSet = m_chMap.entrySet();
+		Iterator<Entry<K, SelectableChannel>> iter = hashMapSet.iterator();
+		while(iter.hasNext())
+		{
+			Map.Entry<K, SelectableChannel> entry = (Map.Entry<K, SelectableChannel>) iter.next();
+			sb.append(entry.toString()+"\n");
+		}
+		
+		return sb.toString();
+	}
 
 }

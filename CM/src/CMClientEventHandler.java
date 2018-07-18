@@ -187,7 +187,11 @@ public class CMClientEventHandler implements CMEventHandler {
 		case CMSessionEvent.LOGIN_ACK:
 			if(se.isValidUser() == 0)
 			{
-				System.out.println("This client fails authentication by the default server.");
+				System.err.println("This client fails authentication by the default server!");
+			}
+			else if(se.isValidUser() == -1)
+			{
+				System.err.println("This client is already in the login-user list!");
 			}
 			else
 			{
@@ -272,6 +276,9 @@ public class CMClientEventHandler implements CMEventHandler {
 			{
 				System.out.println("User profile search failed: user["+se.getUserName()+"]!");
 			}
+			break;
+		case CMSessionEvent.UNEXPECTED_SERVER_DISCONNECTION:
+			System.err.println("Unexpected disconnection from the default server!");
 			break;
 		default:
 			return;
@@ -366,6 +373,29 @@ public class CMClientEventHandler implements CMEventHandler {
 			System.out.println("Received user envet 'EndForwardDelay', avg delay("+m_lDelaySum/nSendNum+" ms)");
 			m_lDelaySum = 0;
 		}
+		else if(ue.getStringID().equals("repRecv"))
+		{
+			String strReceiver = ue.getEventField(CMInfo.CM_STR, "receiver");
+			int nBlockingChannelType = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chType"));
+			int nBlockingChannelKey = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chKey"));
+			int nRecvPort = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "recvPort"));
+			int opt = -1;
+			if(nBlockingChannelType == CMInfo.CM_SOCKET_CHANNEL)
+				opt = CMInfo.CM_STREAM;
+			else if(nBlockingChannelType == CMInfo.CM_DATAGRAM_CHANNEL)
+				opt = CMInfo.CM_DATAGRAM;
+
+			CMDummyEvent due = new CMDummyEvent();
+			due.setDummyInfo("This is a test message to test a blocking channel");
+			System.out.println("Sending a dummy event to ("+strReceiver+")..");
+			
+			if(opt == CMInfo.CM_STREAM)
+				m_clientStub.send(due, strReceiver, opt, nBlockingChannelKey, true);
+			else if(opt == CMInfo.CM_DATAGRAM)
+				m_clientStub.send(due, strReceiver, opt, nBlockingChannelKey, nRecvPort, true);
+			else
+				System.err.println("invalid sending option!: "+opt);
+		}
 		else
 		{
 			System.out.println("CMUserEvent received, strID("+ue.getStringID()+")");
@@ -398,7 +428,7 @@ public class CMClientEventHandler implements CMEventHandler {
 		{
 		case CMFileEvent.REQUEST_FILE_TRANSFER:
 		case CMFileEvent.REQUEST_FILE_TRANSFER_CHAN:
-			System.out.println("["+fe.getUserName()+"] requests file("+fe.getFileName()+").");
+			System.out.println("["+fe.getReceiverName()+"] requests file("+fe.getFileName()+").");
 			break;
 		case CMFileEvent.REPLY_FILE_TRANSFER:
 		case CMFileEvent.REPLY_FILE_TRANSFER_CHAN:
@@ -415,6 +445,13 @@ public class CMClientEventHandler implements CMEventHandler {
 					+fe.getFileSize()+" Bytes).");
 			if(m_bDistFileProc)
 				processFile(fe.getFileName());
+			break;
+		case CMFileEvent.CANCEL_FILE_SEND:
+		case CMFileEvent.CANCEL_FILE_SEND_CHAN:
+			System.out.println("["+fe.getSenderName()+"] cancelled the file transfer.");
+			break;
+		case CMFileEvent.CANCEL_FILE_RECV_CHAN:
+			System.out.println("["+fe.getReceiverName()+"] cancelled the file request.");
 			break;
 		}
 		return;

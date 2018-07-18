@@ -7,14 +7,19 @@ import java.nio.charset.Charset;
 import java.util.*;
 
 import kr.ac.konkuk.ccslab.cm.entity.CMChannelInfo;
+import kr.ac.konkuk.ccslab.cm.entity.CMGroup;
 import kr.ac.konkuk.ccslab.cm.entity.CMPosition;
 import kr.ac.konkuk.ccslab.cm.entity.CMServer;
+import kr.ac.konkuk.ccslab.cm.entity.CMServerInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMSession;
 import kr.ac.konkuk.ccslab.cm.entity.CMUser;
+import kr.ac.konkuk.ccslab.cm.entity.CMSessionInfo;
 import kr.ac.konkuk.ccslab.cm.event.CMInterestEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMMultiServerEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSNSEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMSessionEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMDataEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMEventSynchronizer;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMEventInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
@@ -35,7 +40,8 @@ import kr.ac.konkuk.ccslab.cm.sns.CMSNSContentList;
  * A client application can use this class in order to request client-specific communication services.
  * 
  * @author mlim
- * @see {@link CMStub}, {@link CMServerStub}
+ * @see CMStub 
+ * @see CMServerStub
  */
 public class CMClientStub extends CMStub {
 
@@ -96,6 +102,7 @@ public class CMClientStub extends CMStub {
 		}
 		CMEventManager.startReceivingEvent(m_cmInfo);
 		CMCommManager.startReceivingMessage(m_cmInfo);
+		CMCommManager.startSendingMessage(m_cmInfo);
 		
 		if(CMInfo._CM_DEBUG)
 			System.out.println("CMClientStub.startCM(), succeeded.");
@@ -120,10 +127,16 @@ public class CMClientStub extends CMStub {
 	
 	/**
 	 * Connects to the default server.
-	 * <br> When a client application calls this method, the client CM opens a default stream(TCP)
+	 * 
+	 * <p> When a client application calls this method, the client CM opens a default stream(TCP)
 	 * channel and connects to the server CM used by the default server application.
+	 * <br> When the CM client starts by calling the {@link CMClientStub#startCM()} method, it connects 
+	 * to the default server ("SERVER") as one of the initialization tasks.
+	 * Before the client logs in to the default CM server, it must be connected to the server by calling this method.
+	 * The connection to the default server is made with the default TCP channel.
 	 * 
 	 * @return true if the connection is established successfully, or false otherwise.
+	 * @see CMClientStub#connectToServer(String)
 	 * @see CMClientStub#disconnectFromServer()
 	 */
 	public boolean connectToServer()
@@ -137,6 +150,7 @@ public class CMClientStub extends CMStub {
 	 * stream(TCP) channels from the server CM used by the default server application.
 	 * 
 	 * @return true if the connection is successfully disconnected, or false otherwise.
+	 * @see CMClientStub#disconnectFromServer(String)
 	 * @see CMClientStub#connectToServer()
 	 */
 	public boolean disconnectFromServer()
@@ -157,22 +171,78 @@ public class CMClientStub extends CMStub {
 	 * and the requesting client is in the CM_LOGIN state. Otherwise, the login process fails.
 	 * The LOGIN_ACK event also includes other CM information that can be returned by 
 	 * {@link CMSessionEvent#getCommArch()}, {@link CMSessionEvent#isLoginScheme()}, and 
-	 * {@link CMSessionEvent#isSessionScheme()}.
+	 * {@link CMSessionEvent#isSessionScheme()}. The detailed information of the LOGIN_ACK event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.LOGIN_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.LOGIN_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User validity</td><td>int</td><td>1:valid user, 0:invalid user</td><td>isValidUser()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Communication architecture</td><td>String</td>
+	 * <td>
+	 * Specified communication architecture
+	 * <br>CM_CS: client-server model
+	 * <br>CM_PS: client-server with multicast model
+	 * </td>
+	 * <td>getCommArch()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Login scheme</td><td>int</td><td>1: user authentication used, 0: no user authentication</td><td>isLoginScheme()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Session scheme</td><td>int</td><td>1: multiple sessions used, 0: single session used</td><td>isSessionScheme()</td>
+	 * </tr>
+	 * </table>
+	 * 
 	 * <p> When the server CM accepts the login request from a client, the server CM also notifies other 
 	 * participating clients of the information of the login user with the SESSION_ADD_USER event. 
 	 * A client application can catch this event in the event handler routine if it wants to use such 
 	 * information. The login user information is the user name and the host address that can be retrieved 
-	 * by {@link CMSessionEvent#getUserName()} and {@link CMSessionEvent#getHostAddress()} methods, 
-	 * respectively.
+	 * by {@link CMSessionEvent#getUserName()} and {@link CMSessionEvent#getHostAddress()} methods, respectively.
+	 * The detailed information of the SESSION_ADD_USER event is shown below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMsessionEvent.SESSION_ADD_USER event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.SESSION_ADD_USER</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Name of the login user</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Host address</td><td>String</td><td>Host address of the login user</td><td>getHostAddress()</td>
+	 * </tr>
+	 * </table>
 	 * 
 	 * @param strUserName - the user name
 	 * @param strPassword - the password
-	 * @see {@link CMClientStub#logoutCM()}, {@link CMClientStub#registerUser(String, String)}
+	 * @return true if the request is successfully sent to the server; false otherwise.
+	 * @see CMClientStub#syncLoginCM(String, String)
+	 * @see CMClientStub#loginCM(String, String, String)
+	 * @see CMClientStub#logoutCM()
+	 * @see CMClientStub#registerUser(String, String)
 	 * 
 	 */
-	public void loginCM(String strUserName, String strPassword)
+	public boolean loginCM(String strUserName, String strPassword)
 	{
 		CMConfigurationInfo confInfo = m_cmInfo.getConfigurationInfo();
+		boolean bRequestResult = false;
 		
 		// check local state
 		int nUserState = getMyself().getState();
@@ -185,13 +255,10 @@ public class CMClientStub extends CMStub {
 		
 		switch( nUserState )
 		{
-		//case CMInfo.CM_INIT:
-			//System.out.println("You should connect to the default server before login.\n"); 
-			//return;
 		case CMInfo.CM_LOGIN:
 		case CMInfo.CM_SESSION_JOIN:
-			System.out.println("You already logged on the default server.\n"); 
-			return;
+			System.out.println("You already logged in to the default server."); 
+			return false;
 		}
 		
 		String strMyAddr = confInfo.getMyAddress();		// client IP address
@@ -213,10 +280,52 @@ public class CMClientStub extends CMStub {
 		myself.setUDPPort(nMyUDPPort);
 		
 		// send the event
-		send(se, "SERVER");
+		bRequestResult = send(se, "SERVER");
 		se = null;
 		
-		return;
+		return bRequestResult;
+	}
+	
+	/**
+	 * Logs in to the default server synchronously.
+	 * 
+	 * <p> Unlike the asynchronous login method ({@link CMClientStub#loginCM(String, String)}), 
+	 * this method makes the main thread of the client block its execution until it receives and 
+	 * returns the reply event (CMSessionEvent.LOGIN_ACK) from the default server.
+	 * <br> For the other detailed information of the login process, please refer to 
+	 * the asynchronous login method.
+	 * 
+	 * @param strUserName - the user name
+	 * @param strPassword - the password
+	 * @return the reply event (CMSessionEvent.LOGIN_ACK) from the default server.
+	 * @see CMClientStub#loginCM(String, String)
+	 */
+	public CMSessionEvent syncLoginCM(String strUserName, String strPassword)
+	{
+		CMEventSynchronizer eventSync = m_cmInfo.getEventInfo().getEventSynchronizer();
+		CMSessionEvent loginAckEvent = null;
+		boolean bRequestResult = false;
+		
+		bRequestResult = loginCM(strUserName, strPassword);
+		if(!bRequestResult) return null;
+		
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.LOGIN_ACK);
+		synchronized(eventSync)
+		{
+			while(loginAckEvent == null)
+			{
+				try {
+					eventSync.wait(30000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				loginAckEvent = (CMSessionEvent) eventSync.getReplyEvent();
+			}
+		}
+		eventSync.init();
+		
+		return loginAckEvent;
 	}
 	
 	/**
@@ -228,22 +337,42 @@ public class CMClientStub extends CMStub {
 	 * of the {@link CMSessionEvent}. 
 	 * A client application can catch this event in the event handler routine if it wants to use 
 	 * such information. The logout user information is just the user name, which can be returned by 
-	 * {@link CMSessionEvent#getUserName()} method.
+	 * {@link CMSessionEvent#getUserName()} method. The detailed information of the SESSION_REMOVE_USER event 
+	 * is described below.
 	 * 
-	 * @see {@link CMClientStub#loginCM()}, {@link CMClientStub#dereisterUser()}
+	 * <table border=1>
+	 * <caption>CMSessionEvent.SESSION_REMOVE_USER event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.SESSION_REMOVE_USER</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>Name of the logout user</td><td>getUserName()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @return true if successfully sent the logout request, false otherwise.
+	 * @see CMClientStub#loginCM(String, String)
+	 * @see CMClientStub#deregisterUser(String, String)
 	 */
-	public void logoutCM()
+	public boolean logoutCM()
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
+		boolean bRequestResult = false;
 		
 		// check state of the local user
 		CMUser myself = getMyself();
 		switch(myself.getState())
 		{
 		case CMInfo.CM_INIT:
-			System.out.println("You should connect and log in to the default server."); return;
+			System.out.println("You should connect and log in to the default server."); return false;
 		case CMInfo.CM_CONNECT:
-			System.out.println("You should log in to the default server."); return;
+			System.out.println("You should log in to the default server."); return false;
 		}
 		
 		// terminate current group info (multicast channel, group member, Membership key)
@@ -257,15 +386,17 @@ public class CMClientStub extends CMStub {
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.LOGOUT);
 		se.setUserName(myself.getName());
-		send(se, "SERVER");
+		bRequestResult = send(se, "SERVER");
 		
 		// update local state
 		myself.setState(CMInfo.CM_CONNECT);
-		
-		System.out.println("["+myself.getName()+"] logs out the default server.");
+		if(bRequestResult)
+			System.out.println("["+myself.getName()+"] successfully sent the logout request to the default server.");
+		else
+			System.err.println("["+myself.getName()+"] failed the logout request!");
 		
 		se = null;
-		return;
+		return bRequestResult;
 	}
 	
 	/**
@@ -283,30 +414,95 @@ public class CMClientStub extends CMStub {
 	 * <br> Each element of the CMSessionInfo object includes information of an available session such as 
 	 * the session name, the session address and port number to which a client can join, and the current 
 	 * number of session members who already joined the session.
+	 * <br> The detailed information of the RESPONSE_SESSION_INFO event is described below.
 	 * 
-	 * @see {@link CMClientStub#joinSession(String)}, {@link CMClientStub#joinSession(String, String)}
+	 * <table border=1>
+	 * <caption>CMSessionEvent.RESPONSE_SESSION_INFO event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.RESPONSE_SESSION_INFO</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Number of sessions</td><td>int</td><td>Number of sessions</td><td>getSessionNum()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Vector of sessions</td><td>Vector&lt;CMSessionInfo&gt;</td><td>List of session information</td>
+	 * <td>getSessionInfoList()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @return true if the request is successfully sent to the server; false otherwise.
+	 * @see CMClientStub#syncRequestSessionInfo()
+	 * @see CMClientStub#joinSession(String)
+	 * @see CMClientStub#joinSession(String, String)
 	 */
 	// request available session information from the default server
-	public void requestSessionInfo()
+	public boolean requestSessionInfo()
 	{
+		boolean bRequestResult = false;
 		
 		// check local state
 		int nUserState = getMyself().getState();
 		if(nUserState == CMInfo.CM_INIT || nUserState == CMInfo.CM_CONNECT)
 		{
 			System.out.println("CMClientStub.requestSessionInfo(), you should log in to the default server.");
-			return;
+			return false;
 		}
 		
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.REQUEST_SESSION_INFO);
 		se.setUserName(getMyself().getName());
-		send(se, "SERVER");
+		bRequestResult = send(se, "SERVER");
 		
 		if(CMInfo._CM_DEBUG)
 			System.out.println("CMClientStub.requestSessionInfo(), end.");
 		se = null;
-		return;
+		return bRequestResult;
+	}
+	
+	/**
+	 * Requests available session information from the default server synchronously.
+	 * 
+	 * <p> Unlike the asynchronous method ({@link CMClientStub#requestSessionInfo()}), this method makes 
+	 * the main thread of the client block its execution until it receives and returns the reply event 
+	 * (CMSessionEvent.RESPONSE_SESSION_INFO) from the default server.
+	 * <br> For the other detailed information of the session-information-request process, 
+	 * please refer to the asynchronous version of the request. 
+	 * 
+	 * @return the reply event (CMSessionEvent.RESPONSE_SESSION_INFO) from the default server.
+	 * @see CMClientStub#requestSessionInfo()
+	 */
+	public CMSessionEvent syncRequestSessionInfo()
+	{
+		CMEventSynchronizer eventSync = m_cmInfo.getEventInfo().getEventSynchronizer();
+		CMSessionEvent replyEvent = null;
+		boolean bRequestResult = false;
+		
+		bRequestResult = requestSessionInfo();
+		if(!bRequestResult) return null;
+		
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.RESPONSE_SESSION_INFO);
+		synchronized(eventSync)
+		{
+			while(replyEvent == null)
+			{
+				try {
+					eventSync.wait(30000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				replyEvent = (CMSessionEvent) eventSync.getReplyEvent();
+			}
+		}
+		eventSync.init();
+		
+		return replyEvent;
 	}
 
 	/**
@@ -320,8 +516,8 @@ public class CMClientStub extends CMStub {
 	 * the server CM adopts single session or multiple sessions in the CM server configuration file 
 	 * (cm-server.conf).
 	 * <br> After the client CM completes to join a session, it automatically proceeds to enter the first 
-	 * group of the session. For example, if the client joins ¡°session1¡±, it also enters the group, ¡°g1¡±
-	 * that is the first group of the session, ¡°session1¡±.
+	 * group of the session. For example, if the client joins &quot;session1&quot;, it also enters the group, &quot;g1&quot;
+	 * that is the first group of the session, &quot;session1&quot;.
 	 * 
 	 * <p> When the server CM completes the session joining request from a client, the server CM also 
 	 * notifies other participating clients of the information of the new session user with 
@@ -329,7 +525,26 @@ public class CMClientStub extends CMStub {
 	 * in the event handler routine if it wants to use such information. The CHANGE_SESSION event includes 
 	 * fields such as the user name and the session name, which can be returned by calling 
 	 * the {@link CMSessionEvent#getUserName()} and the {@link CMSessionEvent#getSessionName()} methods, 
-	 * respectively.
+	 * respectively. The detailed information of the CHANGE_SESSION event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.CHANGE_SESSION event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.CHANGE_SESSION</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Name of a user who joins a session</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Session name</td><td>String</td><td>Name of a session which the user joins</td><td>getSessionName()</td>
+	 * </tr>
+	 * </table>
 	 * 
 	 * <p> When the server CM completes the group joining request from a client, the server CM also notifies 
 	 * other participating clients of the information of the new group user with the NEW_USER event that 
@@ -341,7 +556,36 @@ public class CMClientStub extends CMStub {
 	 * address of the new group user, and the UDP port number of the new group user. Each event field can be 
 	 * returned by calling the {@link CMDataEvent#getHandlerSession()}, {@link CMDataEvent#getHandlerGroup()}, 
 	 * {@link CMDataEvent#getUserName()}, {@link CMDataEvent#getHostAddress()}, 
-	 * and {@link CMDataEvent#getUDPPort()} methods, respectively.
+	 * and {@link CMDataEvent#getUDPPort()} methods, respectively. The detailed information of the NEW_USER event 
+	 * is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMDataEvent.NEW_USER event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_DATA_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMDataEvent.NEW_USER</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current session</td><td>String</td><td>current session name of the user</td><td>getHandlerSession()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current group</td><td>String</td><td>current group name of the user</td><td>getHandlerGroup()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>name of the new group user</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>host address</td><td>String</td><td>host address of the new group user</td><td>getHostAddress()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>UDP port number</td><td>int</td><td>UDP port number of the new group user</td><td>getUDPPort()</td>
+	 * </tr>
+	 * </table>
 	 * 
 	 * <p> When the server CM completes the group joining request from a client, the server CM also notifies 
 	 * the new user of the information of other existing group users with the series of INHABITANT events that 
@@ -353,25 +597,59 @@ public class CMClientStub extends CMStub {
 	 * address of the new group user, and the UDP port number of the new group user. Each event field can be 
 	 * returned by calling the {@link CMDataEvent#getHandlerSession()}, {@link CMDataEvent#getHandlerGroup()}, 
 	 * {@link CMDataEvent#getUserName()}, {@link CMDataEvent#getHostAddress()}, 
-	 * and {@link CMDataEvent#getUDPPort()} methods, respectively.
+	 * and {@link CMDataEvent#getUDPPort()} methods, respectively. The detailed information of the INHABITANT event is 
+	 * described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMDataEvent.INHABITANT event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_DATA_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMDataEvent.INHABITANT</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current session</td><td>String</td><td>current session name of the user</td><td>getHandlerSession()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current group</td><td>String</td><td>current group name of the user</td><td>getHandlerGroup()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>name of the new group user</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>host address</td><td>String</td><td>host address of the new group user</td><td>getHostAddress()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>UDP port number</td><td>int</td><td>UDP port number of the new group user</td><td>getUDPPort()</td>
+	 * </tr>
+	 * </table>
+	 * 
 	 * 
 	 * @param sname - the session name that a client requests to join
-	 * @see {@link CMClientStub#joinSession(String, String)}
-	 * @see {@link CMClientStub#leaveSession()}, {@link CMClientStub#leaveSession(String)}
+	 * @return true if the request is successful; false otherwise.
+	 * @see CMClientStub#syncJoinSession(String)
+	 * @see CMClientStub#joinSession(String, String)
+	 * @see CMClientStub#leaveSession()
+	 * @see CMClientStub#leaveSession(String)
 	 */
-	public void joinSession(String sname)
+	public boolean joinSession(String sname)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
+		boolean bResult = false;
 		
 		// check local state
 		switch( getMyself().getState() )
 		{
 		case CMInfo.CM_INIT:
-			System.out.println("You should connect and login server before session join.\n"); return;
+			System.out.println("You should connect and login server before session join.\n"); return false;
 		case CMInfo.CM_CONNECT:
-			System.out.println("You should login server before session join..\n"); return;
+			System.out.println("You should login server before session join..\n"); return false;
 		case CMInfo.CM_SESSION_JOIN:
-			System.out.println("You have already joined a session.\n"); return;
+			System.out.println("You have already joined a session.\n"); return false;
 		}
 		
 		// check selected session
@@ -379,7 +657,7 @@ public class CMClientStub extends CMStub {
 		{
 			System.out.println("session("+sname+") not found. You can request session information"
 					+" from the default server.");
-			return;
+			return false;
 		}
 
 		// make and send an event
@@ -388,11 +666,52 @@ public class CMClientStub extends CMStub {
 		se.setHandlerSession(sname);
 		se.setUserName(getMyself().getName());
 		se.setSessionName(sname);
-		send(se, "SERVER");
+		bResult = send(se, "SERVER");
 		getMyself().setCurrentSession(sname);
 		
 		se = null;
-		return;
+		return bResult;
+	}
+	
+	/**
+	 * Joins a session in the default server synchronously.
+	 * 
+	 * <p> Unlike the asynchronous method ({@link CMClientStub#joinSession(String)}), this method makes 
+	 * the main thread of the client block its execution until it receives and returns the reply event 
+	 * (CMSessionEvent.JOIN_SESSION_ACK) from the default server.
+	 * <br> For the other detailed information of the session-join process, please refer to the asynchronous 
+	 * version of the request.  
+	 * 
+	 * @param sname - the session name that a client requests to join
+	 * @return the reply event (CMSessionEvent.JOIN_SESSION_ACK) from the default server, null if the request fails.
+	 * @see CMClientStub#joinSession(String)
+	 */
+	public CMSessionEvent syncJoinSession(String sname)
+	{
+		CMEventSynchronizer eventSync = m_cmInfo.getEventInfo().getEventSynchronizer();
+		CMSessionEvent replyEvent = null;
+		boolean bRequestResult = false;
+		
+		bRequestResult = joinSession(sname);
+		if(!bRequestResult) return null;
+		
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.JOIN_SESSION_ACK);
+		synchronized(eventSync)
+		{
+			while(replyEvent == null)
+			{
+				try {
+					eventSync.wait(30000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				replyEvent = (CMSessionEvent) eventSync.getReplyEvent();
+			}
+		}
+		eventSync.init();
+		
+		return replyEvent;		
 	}
 	
 	/**
@@ -403,7 +722,30 @@ public class CMClientStub extends CMStub {
 	 * <p> Before leaving the current session, the server first remove the client from its current group. 
 	 * The server notifies group members of the user leave by sending the REMOVE_USER event of 
 	 * the {@link CMDataEvent}. The REMOVE_USER event includes the user name field, which can be returned 
-	 * by the {@link CMDataEvent#getUserName()} method.
+	 * by the {@link CMDataEvent#getUserName()} method. The detailed information of the REMOvE_USER event 
+	 * is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMDataEvent.REMOVE_USER event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event field</td><td>CMInfo.CM_DATA_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMDataEvent.REMOVE_USER</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current session</td><td>String</td><td>current session name of the user</td><td>getHandlerSession()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>current group</td><td>String</td><td>current group name of the user</td><td>getHandlerGroup()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>name of the leaving group user</td><td>getUserName()</td>
+	 * </tr>
+	 * </table>
 	 * 
 	 * <p> When the server CM completes the session leaving request from a client, the server CM also 
 	 * notifies other participating clients of the information of the leaving user with the CHANGE_SESSION 
@@ -415,23 +757,26 @@ public class CMClientStub extends CMStub {
 	 * If the session name field of this event is an empty space, a client can know that the user leaves 
 	 * his/her current session. 
 	 * 
-	 * @see {@link CMClientStub#leaveSession(String)}
-	 * @see {@link CMClientStub#joinSession(String)}, {@link CMClientStub#joinSession(String, String)}
+	 * @return true if successfully sent the leave-session request, false otherwise.
+	 * @see CMClientStub#leaveSession(String)
+	 * @see CMClientStub#joinSession(String)
+	 * @see CMClientStub#joinSession(String, String)
 	 */
-	public void leaveSession()
+	public boolean leaveSession()
 	{
+		boolean bRequestResult = false;
 		CMUser myself = getMyself();
 		// check local state
 		switch(myself.getState())
 		{
 		case CMInfo.CM_INIT:
 			System.out.println("You should connect, log in to the default server, and join a session."); 
-			return;
+			return false;
 		case CMInfo.CM_CONNECT:
 			System.out.println("You should log in to the default server and join a session.");
-			return;
+			return false;
 		case CMInfo.CM_LOGIN:
-			System.out.println("You should join a session."); return;
+			System.out.println("You should join a session."); return false;
 		}
 		
 		// terminate current group info (multicast channel, group member, Membership key)
@@ -443,15 +788,18 @@ public class CMClientStub extends CMStub {
 		se.setHandlerSession(myself.getCurrentSession());
 		se.setUserName(myself.getName());
 		se.setSessionName(myself.getCurrentSession());
-		send(se, "SERVER");
+		bRequestResult = send(se, "SERVER");
 		
 		// update the local state
 		myself.setState(CMInfo.CM_LOGIN);
 		
-		System.out.println("["+myself.getName()+"] leaves session("+myself.getCurrentSession()+").");
+		if(bRequestResult)
+			System.out.println("["+myself.getName()+"] successfully requested to leave session("+myself.getCurrentSession()+").");
+		else
+			System.err.println("["+myself.getName()+"] failed the leave-session request!");
 		
 		se = null;
-		return;
+		return bRequestResult;
 	}
 	
 	/**
@@ -498,21 +846,70 @@ public class CMClientStub extends CMStub {
 	 * server. The SESSION_TALK event includes fields such as the sender name, the text message, and 
 	 * the session name of the sender, which can be returned by calling {@link CMSessionEvent#getUserName()}, 
 	 * {@link CMSessionEvent#getTalk()}, and {@link CMSessionEvent#getHandlerSession()} methods, respectively. 
+	 * The detailed information of the SESSION_TALK event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.SESSION_TALK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_Event</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.SESSION_TALK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>name of the sending user</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>text message</td><td>String</td><td>a chat message</td><td>getTalk()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>session name</td><td>String</td><td>current session of the sending user</td><td>getHandlerSession()</td>
+	 * </tr>
+	 * </table>
+	 * 
 	 * <br>The other event is the USER_TALK event of the {@link CMInterestEvent} class. A client can 
 	 * receive this event only if it enters a group. The USER_TALK event includes fields such as the sender 
 	 * name, the text message, the session name of the sender, and the group name of the sender, which can 
 	 * be returned by calling {@link CMInterestEvent#getUserName()}, {@link CMInterestEvent#getTalk()}, 
 	 * {@link CMInterestEvent#getHandlerSession()}, and {@link CMInterestEvent#getHandlerGroup()} methods, 
-	 * respectively.
+	 * respectively. The detailed information of the USER_TAlK event is descrbied below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMInterestEvent.USER_TALK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_INTEREST_Event</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMInterestEvent.USER_TALK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>user name</td><td>String</td><td>name of the sending user</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>text message</td><td>String</td><td>a chat message</td><td>getTalk()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>session name</td><td>String</td><td>current session of the sending user</td><td>getHandlerSession()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>group name</td><td>String</td><td>current group of the sending user</td><td>getHandlerGroup()</td>
+	 * </tr>
+	 * </table> 
 	 * 
 	 * @param strTarget - the receiver name.
-	 * <br>This parameter must start with ¡®/¡¯ character and it specifies the range of recipients of the chat 
+	 * <br>This parameter must start with &quot;/&quot; character and it specifies the range of recipients of the chat 
 	 * message as described below:
 	 * <br> /b - The chat message is sent to the all login users.
 	 * <br> /s - The chat message is sent to the all session members of the sending user.
 	 * <br> /g - The chat message is sent to the all group members of the sending user.
-	 * <br> /name - The chat message is sent to a specific CM node of which name is ¡®name¡¯. The name can be 
-	 * another user name or a server name. If ¡®name¡¯ is SERVER, the message is sent to the default server.
+	 * <br> /name - The chat message is sent to a specific CM node of which name is &quot;name&quot;. The name can be 
+	 * another user name or a server name. If &quot;name&quot; is SERVER, the message is sent to the default server.
 	 * @param strMessage - the chat message.
 	 */
 	public void chat(String strTarget, String strMessage)
@@ -611,25 +1008,26 @@ public class CMClientStub extends CMStub {
 	/**
 	 * Adds asynchronously a nonblocking (TCP) socket channel to a server.
 	 * <br> Only the client can add an additional stream socket (TCP) channel. In the case of the datagram 
-	 * and multicast channels, both the client and the server can add an additional channel 
-	 * with the {@link CMStub#addDatagramChannel(int)} and {@link CMStub#addMulticastChannel(String, String, String, int)} 
-	 * methods in the CMStub class.
+	 * and multicast channels, both the client and the server can add an additional non-blocking channel 
+	 * with the {@link CMStub#addNonBlockDatagramChannel(int)} and 
+	 * {@link CMStub#addMulticastChannel(String, String, String, int)} methods in the CMStub class.
 	 * 
 	 * <p> Although this method returns the reference to the valid socket channel at the client, it is unsafe 
-	 * for the client use the socket before the server also adds the relevant channel information.
+	 * for the client to use the socket before the server also adds the relevant channel information.
 	 * The establishment of a new nonblocking socket channel at both sides (the client and the server) completes 
 	 * only when the client receives the ack event (CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK) from the server 
 	 * and the return code in the event is 1.
 	 * The client event handler can catch the ack event, and the detailed event fields are described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event ID </td> <td> CMSNSEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK </td>
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK </td>
 	 *   </tr>
-	 *   <tr>
+	 *   <tr bgcolor="lightgrey">
 	 *     <td> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
@@ -643,7 +1041,7 @@ public class CMClientStub extends CMStub {
 	 *   </tr>
 	 * </table>
 	 * 
-	 * @param nKey - the channel key which must be greater than 0.
+	 * @param nChKey - the channel key that must be greater than 0.
 	 * The key 0 is occupied by the default TCP channel.
 	 * @param strServer - the server name to which the client adds a TCP channel. The name of the default 
 	 * server is 'SERVER'.
@@ -656,7 +1054,7 @@ public class CMClientStub extends CMStub {
 	 * @see CMClientStub#syncAddBlockSocketChannel(int, String)
 	 * @see CMClientStub#removeNonBlockSocketChannel(int, String)
 	 */
-	public boolean addNonBlockSocketChannel(int nKey, String strServer)
+	public boolean addNonBlockSocketChannel(int nChKey, String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
 		CMServer serverInfo = null;
@@ -685,10 +1083,10 @@ public class CMClientStub extends CMStub {
 		
 		try {
 			scInfo = serverInfo.getNonBlockSocketChannelInfo();
-			sc = (SocketChannel) scInfo.findChannel(nKey);
+			sc = (SocketChannel) scInfo.findChannel(nChKey);
 			if(sc != null)
 			{
-				System.err.println("CMClientStub.addNonBlockSocketChannel(), channel key("+nKey
+				System.err.println("CMClientStub.addNonBlockSocketChannel(), channel key("+nChKey
 						+") already exists.");
 				return false;
 			}
@@ -697,11 +1095,11 @@ public class CMClientStub extends CMStub {
 					serverInfo.getServerAddress(), serverInfo.getServerPort(), m_cmInfo);
 			if(sc == null)
 			{
-				System.err.println("CMClientStub.addNonBlockSocketChannel(), failed!: key("+nKey+"), server("
+				System.err.println("CMClientStub.addNonBlockSocketChannel(), failed!: key("+nChKey+"), server("
 						+strServer+")");
 				return false;
 			}
-			scInfo.addChannel(nKey, sc);
+			scInfo.addChannel(nChKey, sc);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -712,15 +1110,15 @@ public class CMClientStub extends CMStub {
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL);
 		se.setChannelName(getMyself().getName());
-		se.setChannelNum(nKey);
-		send(se, strServer, CMInfo.CM_STREAM, nKey);
+		se.setChannelNum(nChKey);
+		send(se, strServer, CMInfo.CM_STREAM, nChKey);
 		
 		se = null;
 		
 		if(CMInfo._CM_DEBUG)
 		{
 			System.out.println("CMClientStub.addNonBlockSocketChannel(),successfully requested to add the channel "
-					+ "with the key("+nKey+") to the server("+strServer+")");
+					+ "with the key("+nChKey+") to the server("+strServer+")");
 		}
 		
 		return true;
@@ -729,11 +1127,11 @@ public class CMClientStub extends CMStub {
 	/**
 	 * Adds synchronously a nonblocking (TCP) socket channel to a server.
 	 * <br> Only the client can add an additional stream socket (TCP) channel. In the case of the datagram 
-	 * and multicast channels, both the client and the server can add an additional channel 
-	 * with the {@link CMStub#addDatagramChannel(int)} and {@link CMStub#addMulticastChannel(String, String, String, int)} 
+	 * and multicast channels, both the client and the server can add an additional non-blocking channel 
+	 * with the {@link CMStub#addNonBlockDatagramChannel(int)} and {@link CMStub#addMulticastChannel(String, String, String, int)} 
 	 * methods in the CMStub class.
 	 * 
-	 * @param nKey - the channel key which must be greater than 0.
+	 * @param nChKey - the channel key which must be greater than 0.
 	 * The key 0 is occupied by the default TCP channel.
 	 * @param strServer - the server name to which the client adds a TCP channel. The name of the default 
 	 * server is 'SERVER'.
@@ -745,13 +1143,15 @@ public class CMClientStub extends CMStub {
 	 * @see CMClientStub#syncAddBlockSocketChannel(int, String)
 	 * @see CMClientStub#removeNonBlockSocketChannel(int, String)
 	 */
-	public SocketChannel syncAddNonBlockSocketChannel(int nKey, String strServer)
+	public SocketChannel syncAddNonBlockSocketChannel(int nChKey, String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
 		CMServer serverInfo = null;
 		SocketChannel sc = null;
 		CMChannelInfo<Integer> scInfo = null;
 		CMEventInfo eInfo = m_cmInfo.getEventInfo();
+		CMEventSynchronizer eventSync = eInfo.getEventSynchronizer();
+		CMSessionEvent replyEvent = null;
 		int nReturnCode = -1;
 		
 		if(getMyself().getState() == CMInfo.CM_INIT || getMyself().getState() == CMInfo.CM_CONNECT)
@@ -776,10 +1176,10 @@ public class CMClientStub extends CMStub {
 		
 		try {
 			scInfo = serverInfo.getNonBlockSocketChannelInfo();
-			sc = (SocketChannel) scInfo.findChannel(nKey);
+			sc = (SocketChannel) scInfo.findChannel(nChKey);
 			if(sc != null)
 			{
-				System.err.println("CMClientStub.syncAddNonBlockSocketChannel(), channel key("+nKey
+				System.err.println("CMClientStub.syncAddNonBlockSocketChannel(), channel key("+nChKey
 						+") already exists.");
 				return null;
 			}
@@ -788,11 +1188,11 @@ public class CMClientStub extends CMStub {
 					serverInfo.getServerAddress(), serverInfo.getServerPort(), m_cmInfo);
 			if(sc == null)
 			{
-				System.err.println("CMClientStub.syncAddNonBlockSocketChannel(), failed!: key("+nKey+"), server("
+				System.err.println("CMClientStub.syncAddNonBlockSocketChannel(), failed!: key("+nChKey+"), server("
 						+strServer+")");
 				return null;
 			}
-			scInfo.addChannel(nKey, sc);
+			scInfo.addChannel(nChKey, sc);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -800,57 +1200,52 @@ public class CMClientStub extends CMStub {
 			return null;
 		}
 
-		synchronized(eInfo.getANBSCAObject())
-		{
-			/*
-			 * This statement is required because the ack event of adding a blocking socket channel
-			 * can set the ANBSCAReturnCode value.
-			 */
-			eInfo.setANBSCAReturnCode(-1);
-		}
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK);
 
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL);
 		se.setChannelName(getMyself().getName());
-		se.setChannelNum(nKey);
-		send(se, strServer, CMInfo.CM_STREAM, nKey);
+		se.setChannelNum(nChKey);
+		boolean bRequestResult = send(se, strServer, CMInfo.CM_STREAM, nChKey);
+		if(!bRequestResult)
+			return null;
 		
 		se = null;
 		
-		synchronized(eInfo.getANBSCAObject())
+		synchronized(eventSync)
 		{
-			while(nReturnCode == -1)
+			while(replyEvent == null)
 			{
 				try {
-					eInfo.getANBSCAObject().wait(60000);  // timeout 60s
+					eventSync.wait(30000);  // timeout 30s
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				nReturnCode = eInfo.getANBSCAReturnCode();
-			}
-			
-			eInfo.setANBSCAReturnCode(-1);	// reset the value (-1)
+				replyEvent = (CMSessionEvent) eventSync.getReplyEvent();
+			}	
 		}
+		eventSync.init();
 
+		nReturnCode = replyEvent.getReturnCode();
 		if(nReturnCode == 1) // successfully add the new channel info (key, channel) at the server
 		{
 			if(CMInfo._CM_DEBUG)
 			{
 				System.out.println("CMClientStub.syncAddNonBlockSocketChannel(), successfully add the channel "
-						+ "info at the server: key("+nKey+"), server("+strServer+")");
+						+ "info at the server: key("+nChKey+"), server("+strServer+")");
 			}
 		}
 		else if(nReturnCode == 0) // failed to add the new channel info (key, channel) at the server
 		{
 			System.err.println("CMClientStub.syncAddNonBlockSocketChannel(),failed to add the channel info "
-					+ "at the server: key("+nKey+"), server("+strServer+")");
+					+ "at the server: key("+nChKey+"), server("+strServer+")");
 			sc = null;	// the new socket channel is closed and removed at the CMInteractionManager
 		}
 		else
 		{
 			System.err.println("CMClientStub.syncAddNonBlockSocketChannel(), failed: return code("+nReturnCode+")");
-			scInfo.removeChannel(nKey);
+			scInfo.removeChannel(nChKey);
 			sc = null;
 		}
 		
@@ -860,13 +1255,16 @@ public class CMClientStub extends CMStub {
 	/**
 	 * Removes a nonblocking (TCP) socket channel from a server.
 	 * 
-	 * @param nKey - the key of the channel that is to be removed. The key must be greater than 0. 
+	 * @param nChKey - the key of the channel that is to be removed. The key must be greater than 0. 
 	 * If the default channel (0) is removed, the result is undefined. 
 	 * @param strServer - the server name from which the additional channel is removed.
+	 * @return true if the client successfully closes and removes the channel, or false otherwise.
+	 * <br> If the client removes the nonblocking socket channel, the server CM detects the disconnection and 
+	 * removes the channel at the server side as well. 
 	 * @see CMClientStub#addNonBlockSocketChannel(int, String)
 	 * @see CMClientStub#removeBlockSocketChannel(int, String)
 	 */
-	public boolean removeNonBlockSocketChannel(int nKey, String strServer)
+	public boolean removeNonBlockSocketChannel(int nChKey, String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
 		CMServer serverInfo = null;
@@ -894,18 +1292,18 @@ public class CMClientStub extends CMStub {
 		}
 		
 		scInfo = serverInfo.getNonBlockSocketChannelInfo();
-		result = scInfo.removeChannel(nKey);
+		result = scInfo.removeChannel(nChKey);
 		if(result)
 		{
 			if(CMInfo._CM_DEBUG)
 			{
-				System.out.println("CMClientStub.removeNonBlockSocketChannel(), succeeded. key("+nKey+"), server ("
+				System.out.println("CMClientStub.removeNonBlockSocketChannel(), succeeded. key("+nChKey+"), server ("
 					+strServer+").");
 			}
 		}
 		else
 		{
-			System.err.println("CMClientStub.removeNonBlockSocketChannel(), failed! key("+nKey+"), server ("
+			System.err.println("CMClientStub.removeNonBlockSocketChannel(), failed! key("+nChKey+"), server ("
 					+strServer+").");			
 		}
 		
@@ -915,27 +1313,28 @@ public class CMClientStub extends CMStub {
 	/**
 	 * Adds asynchronously a blocking (TCP) socket channel to a server.
 	 * <br> Only the client can add an additional stream socket (TCP) channel. In the case of the datagram 
-	 * and multicast channels, both the client and the server can add an additional channel 
-	 * with the {@link CMStub#addDatagramChannel(int)} and {@link CMStub#addMulticastChannel(String, String, String, int)} 
-	 * methods in the CMStub class.
+	 * channel, both the client and the server can add an additional blocking channel 
+	 * with the {@link CMStub#addBlockDatagramChannel(int)} method in the CMStub class.
 	 * 
 	 * <p> Although this method returns the reference to the valid socket channel, the server side socket channel is 
 	 * always created as a nonblocking mode first due to the intrinsic CM architecture of event-driven asynchronous 
 	 * communication. The server sends the acknowledgement message after the nonblocking channel is changed 
-	 * to the blocking channel. It is unsafe for the client use its socket before the blocking mode change at the server.
+	 * to the blocking channel. It is unsafe for the client use its socket channel before the channel is changed to 
+	 * the blocking mode at the server.
 	 * The establishment of a new blocking socket channel at both sides (the client and the server) completes 
 	 * only when the client receives the ack event (CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK) from the server 
 	 * and the return code in the event is 1. 
 	 * The client event handler can catch the ack event, and the detailed event fields are described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event ID </td> <td> CMSNSEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK </td>
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK </td>
 	 *   </tr>
-	 *   <tr>
+	 *   <tr bgcolor="lightgrey">
 	 *     <td> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
@@ -949,7 +1348,7 @@ public class CMClientStub extends CMStub {
 	 *   </tr>
 	 * </table>
 	 * 
-	 * @param nKey - the channel key. It should be a positive integer (greater than or equal to 0).
+	 * @param nChKey - the channel key. It should be a positive integer (greater than or equal to 0).
 	 * @param strServer - the name of a server to which the client creates a connection. The default server name is 
 	 * "SERVER".
 	 * @return a reference to the socket channel if it is successfully created at the client, or null otherwise. 
@@ -960,7 +1359,7 @@ public class CMClientStub extends CMStub {
 	 * @see CMClientStub#removeBlockSocketChannel(int, String)
 	 * 
 	 */
-	public boolean addBlockSocketChannel(int nKey, String strServer)
+	public boolean addBlockSocketChannel(int nChKey, String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
 		CMServer serverInfo = null;
@@ -989,10 +1388,10 @@ public class CMClientStub extends CMStub {
 		
 		try {
 			scInfo = serverInfo.getBlockSocketChannelInfo();
-			sc = (SocketChannel) scInfo.findChannel(nKey);
+			sc = (SocketChannel) scInfo.findChannel(nChKey);
 			if(sc != null)
 			{
-				System.err.println("CMClientStub.addBlockSocketChannel(), channel key("+nKey+") already exists.");
+				System.err.println("CMClientStub.addBlockSocketChannel(), channel key("+nChKey+") already exists.");
 				return false;
 			}
 			
@@ -1000,10 +1399,10 @@ public class CMClientStub extends CMStub {
 					serverInfo.getServerAddress(), serverInfo.getServerPort(), m_cmInfo);
 			if(sc == null)
 			{
-				System.err.println("CMClientStub.addBlockSocketChannel(), failed!: key("+nKey+"), server("+strServer+")");
+				System.err.println("CMClientStub.addBlockSocketChannel(), failed!: key("+nChKey+"), server("+strServer+")");
 				return false;
 			}
-			scInfo.addChannel(nKey, sc);
+			scInfo.addChannel(nChKey, sc);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -1014,14 +1413,14 @@ public class CMClientStub extends CMStub {
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL);
 		se.setChannelName(getMyself().getName());
-		se.setChannelNum(nKey);
-		send(se, strServer, CMInfo.CM_STREAM, nKey, true);
+		se.setChannelNum(nChKey);
+		send(se, strServer, CMInfo.CM_STREAM, nChKey, true);
 		se = null;
 
 		if(CMInfo._CM_DEBUG)
 		{
 			System.out.println("CMClientStub.addBlockSocketChannel(),successfully requested to add the channel "
-					+ "with the key("+nKey+") to the server("+strServer+")");
+					+ "with the key("+nChKey+") to the server("+strServer+")");
 		}
 				
 		return true;				
@@ -1030,11 +1429,10 @@ public class CMClientStub extends CMStub {
 	/**
 	 * Adds synchronously a blocking (TCP) socket channel to a server.
 	 * <br> Only the client can add an additional stream socket (TCP) channel. In the case of the datagram 
-	 * and multicast channels, both the client and the server can add an additional channel 
-	 * with the {@link CMStub#addDatagramChannel(int)} and {@link CMStub#addMulticastChannel(String, String, String, int)} 
-	 * methods in the CMStub class.
+	 * channel, both the client and the server can add an additional blocking channel 
+	 * with the {@link CMStub#addBlockDatagramChannel(int)} method in the CMStub class.
 	 * 
-	 * @param nKey - the channel key. It should be a positive integer (greater than or equal to 0).
+	 * @param nChKey - the channel key. It should be a positive integer (greater than or equal to 0).
 	 * @param strServer - the name of a server to which the client creates a connection. The default server name is 
 	 * "SERVER".
 	 * @return a reference to the socket channel if it is successfully created both at the client and the server, 
@@ -1045,13 +1443,15 @@ public class CMClientStub extends CMStub {
 	 * @see CMClientStub#syncAddNonBlockSocketChannel(int, String)
 	 * @see CMClientStub#removeBlockSocketChannel(int, String)
 	 */
-	public SocketChannel syncAddBlockSocketChannel(int nKey, String strServer)
+	public SocketChannel syncAddBlockSocketChannel(int nChKey, String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
 		CMServer serverInfo = null;
 		SocketChannel sc = null;
 		CMChannelInfo<Integer> scInfo = null;
 		CMEventInfo eInfo = m_cmInfo.getEventInfo();
+		CMEventSynchronizer eventSync = eInfo.getEventSynchronizer();
+		CMSessionEvent replyEvent = null;
 		int nReturnCode = -1;
 
 		if(getMyself().getState() == CMInfo.CM_INIT || getMyself().getState() == CMInfo.CM_CONNECT)
@@ -1076,10 +1476,10 @@ public class CMClientStub extends CMStub {
 		
 		try {
 			scInfo = serverInfo.getBlockSocketChannelInfo();
-			sc = (SocketChannel) scInfo.findChannel(nKey);
+			sc = (SocketChannel) scInfo.findChannel(nChKey);
 			if(sc != null)
 			{
-				System.err.println("CMClientStub.syncAddBlockSocketChannel(), channel key("+nKey+") already exists.");
+				System.err.println("CMClientStub.syncAddBlockSocketChannel(), channel key("+nChKey+") already exists.");
 				return null;
 			}
 			
@@ -1087,11 +1487,11 @@ public class CMClientStub extends CMStub {
 					serverInfo.getServerAddress(), serverInfo.getServerPort(), m_cmInfo);
 			if(sc == null)
 			{
-				System.err.println("CMClientStub.syncAddBlockSocketChannel(), failed!: key("+nKey+"), server("
+				System.err.println("CMClientStub.syncAddBlockSocketChannel(), failed!: key("+nChKey+"), server("
 						+strServer+")");
 				return null;
 			}
-			scInfo.addChannel(nKey, sc);
+			scInfo.addChannel(nChKey, sc);
 			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -1099,57 +1499,52 @@ public class CMClientStub extends CMStub {
 			return null;
 		}
 
-		synchronized(eInfo.getABSCAObject())
-		{
-			/*
-			 * This statement is required because the ack event of adding a nonblocking socket channel
-			 * can set the ABSCAReturnCode value.
-			 */
-			eInfo.setABSCAReturnCode(-1);
-		}
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK);
 
 		CMSessionEvent se = new CMSessionEvent();
 		se.setID(CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL);
 		se.setChannelName(getMyself().getName());
-		se.setChannelNum(nKey);
-		//send(se, strServer, CMInfo.CM_STREAM, nKey);
-		send(se, strServer, CMInfo.CM_STREAM, nKey, true);
+		se.setChannelNum(nChKey);
+		boolean bRequestResult = send(se, strServer, CMInfo.CM_STREAM, nChKey, true);
+		if(!bRequestResult)
+			return null;
+		
 		se = null;
 
-		synchronized(eInfo.getABSCAObject())
+		synchronized(eventSync)
 		{
-			while(nReturnCode == -1)
+			while(replyEvent == null)
 			{
 				try {
-					eInfo.getABSCAObject().wait(60000);  // timeout 60s
+					eventSync.wait(30000);  // timeout 30s
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				nReturnCode = eInfo.getABSCAReturnCode();
-			}
-			
-			eInfo.setABSCAReturnCode(-1);	// reset the value (-1)
+				replyEvent = (CMSessionEvent) eventSync.getReplyEvent();
+			}			
 		}
+		eventSync.init();
 
+		nReturnCode = replyEvent.getReturnCode();
 		if(nReturnCode == 1) // successfully add the new channel info (key, channel) at the server
 		{
 			if(CMInfo._CM_DEBUG)
 			{
 				System.out.println("CMClientStub.syncAddBlockSocketChannel(), successfully add the channel "
-						+ "info at the server: "+"key("+nKey+"), server("+strServer+")");
+						+ "info at the server: "+"key("+nChKey+"), server("+strServer+")");
 			}
 		}
 		else if(nReturnCode == 0) // failed to add the new channel info (key, channel) at the server
 		{
 			System.err.println("CMClientStub.syncAddBlockSocketChannel(),failed to add the channel info at the server: "
-					+"key("+nKey+"), server("+strServer+")");
+					+"key("+nChKey+"), server("+strServer+")");
 			sc = null;	// the new socket channel is closed and removed at the CMInteractionManager
 		}
 		else
 		{
 			System.err.println("CMClientStub.syncAddBlockSocketChannel(), failed: return code("+nReturnCode+")");
-			scInfo.removeChannel(nKey);
+			scInfo.removeChannel(nChKey);
 			sc = null;
 		}
 
@@ -1169,29 +1564,30 @@ public class CMClientStub extends CMStub {
 	 * The detailed event fields are described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSessionEvent.REMOVE_BLOCK_SOCKET_CHANNEL_ACK event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SESSION_EVENT </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event ID </td> <td> CMSNSEvent.REMOVE_BLOCK_SOCKET_CHANNEL_ACK </td>
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSessionEvent.REMOVE_BLOCK_SOCKET_CHANNEL_ACK </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event field </td> <td> Get method </td>
+	 *     <td bgcolor="lightgrey"> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Channel name (server name) </td> <td> {@link CMSessionEvent#getChannelName()} </td>
+	 *     <td bgcolor="lightgrey"> Channel name (server name) </td> <td> {@link CMSessionEvent#getChannelName()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Channel key </td> <td> {@link CMSessionEvent#getChannelNum()} </td>
+	 *     <td bgcolor="lightgrey"> Channel key </td> <td> {@link CMSessionEvent#getChannelNum()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Return code </td> <td> {@link CMSessionEvent#getReturnCode()} </td>
+	 *     <td bgcolor="lightgrey"> Return code </td> <td> {@link CMSessionEvent#getReturnCode()} </td>
 	 *   </tr>
 	 * </table>
 	 * 
 	 * @param nChKey - the key of a socket channel that is to be deleted.
 	 * @param strServer - the name of a server to which the target socket channel is connected.
-	 * @return true if the client successfully requests the removal of the channel from the server, false otherwise.
+	 * @return true if the client successfully requests the removal of the channel from the server, or false otherwise.
 	 * <br> The blocking socket channel is closed and removed only when the client receives the ack event from the server.
 	 * 
 	 * @see CMClientStub#syncRemoveBlockSocketChannel(int, String)
@@ -1276,6 +1672,8 @@ public class CMClientStub extends CMStub {
 		SocketChannel sc = null;
 		CMSessionEvent se = null;
 		CMEventInfo eInfo = m_cmInfo.getEventInfo();
+		CMEventSynchronizer eventSync = eInfo.getEventSynchronizer();
+		CMSessionEvent replyEvent = null;
 		int nReturnCode = -1;
 
 		if(getMyself().getState() == CMInfo.CM_INIT || getMyself().getState() == CMInfo.CM_CONNECT)
@@ -1307,38 +1705,34 @@ public class CMClientStub extends CMStub {
 			return false;
 		}
 		
-		synchronized(eInfo.getRBSCAObject())
-		{
-			/*
-			 * This statement is required becuase the ack event of removing a nonblocking socket channel
-			 * can set the ABSCAReturnCode value.
-			 */
-			eInfo.setRBSCAReturnCode(-1);			
-		}
+		eventSync.setWaitingEvent(CMInfo.CM_SESSION_EVENT, CMSessionEvent.REMOVE_BLOCK_SOCKET_CHANNEL_ACK);
 		
 		se = new CMSessionEvent();
 		se.setID(CMSessionEvent.REMOVE_BLOCK_SOCKET_CHANNEL);
 		se.setChannelNum(nChKey);
 		se.setChannelName(interInfo.getMyself().getName());
 		result = send(se, strServer);	// send the event with the default nonblocking socket channel
+		if(!result)
+			return false;
+		
 		se = null;
 		
-		synchronized(eInfo.getRBSCAObject())
+		synchronized(eventSync)
 		{
-			while(nReturnCode == -1)
+			while(replyEvent == null)
 			{
 				try {
-					eInfo.getRBSCAObject().wait(60000);  // timeout 60s
+					eventSync.wait(30000);  // timeout 30s
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-				nReturnCode = eInfo.getRBSCAReturnCode();
+				replyEvent = (CMSessionEvent) eventSync.getReplyEvent();
 			}
-			
-			eInfo.setRBSCAReturnCode(-1);	// reset the value (-1)
 		}
+		eventSync.init();
 
+		nReturnCode = replyEvent.getReturnCode();
 		if(nReturnCode == 1) // successfully remove the new channel info (key, channel) at the server
 		{
 			if(CMInfo._CM_DEBUG)
@@ -1360,16 +1754,20 @@ public class CMClientStub extends CMStub {
 		}
 		
 		return result;
-
 	}
 
 	/**
 	 * Returns a blocking socket (TCP) channel.
 	 * 
+	 * <p> A client can add a blocking socket channel with {@link CMClientStub#addBlockSocketChannel(int, String)} method, 
+	 * and retrieve it later with this method.
+	 * 
 	 * @param nChKey - the channel key.
 	 * @param strServerName - the name of a server to which the socket channel is connected.
 	 * <br> If strServerName is null, it implies the socket channel to the default server.
 	 * @return the blocking socket channel, or null if the channel is not found.
+	 * 
+	 * @see CMStub#getBlockDatagramChannel(int)
 	 */
 	public SocketChannel getBlockSocketChannel(int nChKey, String strServerName)
 	{
@@ -1427,49 +1825,50 @@ public class CMClientStub extends CMStub {
 	 * the client event handler. The CONTENT_DOWNLOAD event includes fields as below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSNSEvent.CONTENT_DOWNLOAD event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
 	 *   </tr>
 	 *   <tr> 
-	 *     <td> Event ID </td> <td> CMSNEEvent.CONTENT_DOWNLOAD </td> 
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSNEEvent.CONTENT_DOWNLOAD </td> 
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event field </td> <td> Get method </td>
+	 *     <td bgcolor="lightgrey"> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Requester name </td> <td> {@link CMSNSEvent#getUserName()} </td>
+	 *     <td bgcolor="lightgrey"> Requester name </td> <td> {@link CMSNSEvent#getUserName()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Requested content offset </td> <td> {@link CMSNSEvent#getContentOffset()} </td>
+	 *     <td bgcolor="lightgrey"> Requested content offset </td> <td> {@link CMSNSEvent#getContentOffset()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
+	 *     <td bgcolor="lightgrey"> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
 	 *   </tr>
 	 *   <tr> 
-	 *     <td> Written date and time of the content </td> <td> {@link CMSNSEvent#getDate()} </td> 
+	 *     <td bgcolor="lightgrey"> Written date and time of the content </td> <td> {@link CMSNSEvent#getDate()} </td> 
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Writer name of the content </td> <td> {@link CMSNSEvent#getWriterName()} </td>
+	 *     <td bgcolor="lightgrey"> Writer name of the content </td> <td> {@link CMSNSEvent#getWriterName()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Text message of the content </td> <td> {@link CMSNSEvent#getMessage()} </td>
+	 *     <td bgcolor="lightgrey"> Text message of the content </td> <td> {@link CMSNSEvent#getMessage()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Number of attachments </td> <td> {@link CMSNSEvent#getNumAttachedFiles()} </td>
+	 *     <td bgcolor="lightgrey"> Number of attachments </td> <td> {@link CMSNSEvent#getNumAttachedFiles()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Content ID to which this message replies (0 for no reply) </td>
+	 *     <td bgcolor="lightgrey"> Content ID to which this message replies (0 for no reply) </td>
 	 *     <td> {@link CMSNSEvent#getReplyOf()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Level of disclosure of the content
+	 *     <td bgcolor="lightgrey"> Level of disclosure of the content
 	 *          <br> 0: open to public <br> 1: open only to friends <br> 2: open only to bi-friends 
 	 *          <br> 3: private 
 	 *     </td> 
 	 *     <td> {@link CMSNSEvent#getLevelOfDisclosure()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> List of attached file names </td> <td> {@link CMSNSEvent#getFileNameList()} </td>
+	 *     <td bgcolor="lightgrey"> List of attached file names </td> <td> {@link CMSNSEvent#getFileNameList()} </td>
 	 *   </tr>
 	 * </table>
 	 * 
@@ -1481,36 +1880,37 @@ public class CMClientStub extends CMStub {
 	 * The detailed event fields of the CONTENT_DOWNLOAD_END event is described below.
 	 * 
 	 * <table border=1>
+	 * <caption>CMSNSEvent.CONTENT_DOWNLOAD_END event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event ID </td> <td> CMSNSEvent.CONTENT_DOWNLOAD_END </td>
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSNSEvent.CONTENT_DOWNLOAD_END </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event field </td> <td> Get method </td>
+	 *     <td bgcolor="lightgrey"> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> User name </td> <td> {@link CMSNSEvent#getUserName()} </td>
+	 *     <td bgcolor="lightgrey"> User name </td> <td> {@link CMSNSEvent#getUserName()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Offset </td> <td> {@link CMSNSEvent#getContentOffset()} </td>
+	 *     <td bgcolor="lightgrey"> Offset </td> <td> {@link CMSNSEvent#getContentOffset()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
+	 *     <td bgcolor="lightgrey"> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Number of downloaded items </td> <td> {@link CMSNSEvent#getNumContents()} </td>
+	 *     <td bgcolor="lightgrey"> Number of downloaded items </td> <td> {@link CMSNSEvent#getNumContents()} </td>
 	 *   <tr>
 	 * </table>
 	 * 
 	 * @param strWriter - the name of the writer whose content list will be downloaded.
 	 * <br> The client can designate a specific writer name or a friend group. If the parameter value is 
 	 * a specific user name, the client downloads only content that was uploaded by the specified name 
-	 * and that is accessible by the requester. If the parameter value is ¡®CM_MY_FRIEND¡¯, the client 
-	 * downloads content that was uploaded by the requester¡¯s friends. If the parameter is ¡®CM_BI_FRIEND¡¯, 
-	 * the client downloads content that was uploaded by the requester¡¯s bi-friends. If the ¡®strWriter¡¯ 
-	 * parameter is an empty string (¡°¡±), the client does not specify a writer name and it downloads all 
+	 * and that is accessible by the requester. If the parameter value is &quot;CM_MY_FRIEND&quot;, the client 
+	 * downloads content that was uploaded by the requester&#39;s friends. If the parameter is &quot;CM_BI_FRIEND&quot;, 
+	 * the client downloads content that was uploaded by the requester&#39;s bi-friends. If the &quot;strWriter&quot; 
+	 * parameter is an empty string (&quot;&quot;), the client does not specify a writer name and it downloads all 
 	 * content that the requester is eligible to access.
 	 * @param nOffset - the offset from the beginning of the requested content list.
 	 * <br> The client can request to download some number of SNS messages starting from the nOffset-th 
@@ -1555,7 +1955,8 @@ public class CMClientStub extends CMStub {
 	 * <br> If there is no more next list of SNS content, the server sends the CONTENT_DOWNLOAD_END event of 
 	 * {@link CMSNSEvent} without sending the CONTENT_DOWNLOAD event.
 	 * 
-	 * @see {@link CMClientStub#requestPreviousSNSContent()}, {@link CMClientStub#requestSNSContent(String, int)}
+	 * @see CMClientStub#requestPreviousSNSContent()
+	 * @see CMClientStub#requestSNSContent(String, int)
 	 */
 	public void requestNextSNSContent()
 	{
@@ -1583,7 +1984,8 @@ public class CMClientStub extends CMStub {
 	 * <br> If there is no more previous list of SNS content, the server sends the CONTENT_DOWNLOAD_END event of 
 	 * {@link CMSNSEvent} without sending the CONTENT_DOWNLOAD event.
 	 * 
-	 * @see {@link CMClientStub#requestNextSNSContent()}, {@link CMClientStub#requestSNSContent(String, int)}
+	 * @see CMClientStub#requestNextSNSContent()
+	 * @see CMClientStub#requestSNSContent(String, int)
 	 */
 	public void requestPreviousSNSContent()
 	{
@@ -1615,26 +2017,27 @@ public class CMClientStub extends CMStub {
 	 * The detailed event fields of the CONTENT_UPLOAD_RESPONSE event is described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSNSEvent.CONTENT_UPLOAD_RESPONSE event</caption>
 	 *   <tr>
-	 *     <td> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
+	 *     <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SNS_EVENT </td>
 	 *   </tr>
 	 *   <tr> 
-	 *     <td> Event ID </td> <td> CMSNEEvent.CONTENT_UPLOAD_RESPONSE </td> 
+	 *     <td bgcolor="lightgrey"> Event ID </td> <td> CMSNEEvent.CONTENT_UPLOAD_RESPONSE </td> 
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Event field </td> <td> Get method </td>
+	 *     <td bgcolor="lightgrey"> Event field </td> <td> Get method </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Return code </td> <td> {@link CMSNSEvent#getReturnCode()} </td>
+	 *     <td bgcolor="lightgrey"> Return code </td> <td> {@link CMSNSEvent#getReturnCode()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
+	 *     <td bgcolor="lightgrey"> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> Date and time </td> <td> {@link CMSNSEvent#getDate()} </td>
+	 *     <td bgcolor="lightgrey"> Date and time </td> <td> {@link CMSNSEvent#getDate()} </td>
 	 *   </tr>
 	 *   <tr>
-	 *     <td> User name </td> <td> {@link CMSNSEvent#getUserName()} </td>
+	 *     <td bgcolor="lightgrey"> User name </td> <td> {@link CMSNSEvent#getUserName()} </td>
 	 *   </tr>
 	 * </table>  
 	 * 
@@ -1653,7 +2056,7 @@ public class CMClientStub extends CMStub {
 	 * LoD 3 does not open the uploaded content and makes it private.
 	 * @param filePathList - the list of attached files
 	 * 
-	 * @see {@link CMClientStub#requestSNSContent(String, int)} 
+	 * @see CMClientStub#requestSNSContent(String, int) 
 	 */
 	public void requestSNSContentUpload(String user, String message, int nNumAttachedFiles, 
 			int nReplyOf, int nLevelOfDisclosure, ArrayList<String> filePathList)
@@ -1736,33 +2139,34 @@ public class CMClientStub extends CMStub {
 	 * <br> The detailed event fields of the RESPONSE_ATTACHED_FILE event are described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSNSEvent.RESPONSE_ATTACHED_FILE event</caption>
 	 * <tr>
-	 *   <td> Event type </td> <td> CMInfo.CM_SNS_EVENT </td> 
+	 *   <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SNS_EVENT </td> 
 	 * </tr>
 	 * <tr>
-	 *   <td> Event ID </td> <td> CMSNSEvent.RESPONSE_ATTACHED_FILE </td>
+	 *   <td bgcolor="lightgrey"> Event ID </td> <td> CMSNSEvent.RESPONSE_ATTACHED_FILE </td>
 	 * </tr>
-	 * <tr>
+	 * <tr bgcolor="lightgrey">
 	 *   <td> Event field </td> <td> Get method </td> <td> Description </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> User name </td> <td> {@link CMSNSEvent#getUserName()} </td> 
+	 *   <td bgcolor="lightgrey"> User name </td> <td> {@link CMSNSEvent#getUserName()} </td> 
 	 *   <td> The requesting user name </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
+	 *   <td bgcolor="lightgrey"> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
 	 *   <td> The ID of the SNS content that attached the requested file </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> Writer name </td> <td> {@link CMSNSEvent#getWriterName()} </td>
+	 *   <td bgcolor="lightgrey"> Writer name </td> <td> {@link CMSNSEvent#getWriterName()} </td>
 	 *   <td> The writer name of the SNS content </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> File name </td> <td> {@link CMSNSEvent#getFileName()} </td>
+	 *   <td bgcolor="lightgrey"> File name </td> <td> {@link CMSNSEvent#getFileName()} </td>
 	 *   <td> The name of the attached file </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> Return code </td> <td> {@link CMSNSEvent#getReturnCode()} </td>
+	 *   <td bgcolor="lightgrey"> Return code </td> <td> {@link CMSNSEvent#getReturnCode()} </td>
 	 *   <td> The request result. If the value is 1, the requested file will be delivered to the client. If the value 
 	 *   is 0, the server does nothing further for the request. </td>
 	 * </tr>
@@ -1774,7 +2178,7 @@ public class CMClientStub extends CMStub {
 	 * a file name that needs to separately download from the server.
 	 * 
 	 * @return true if the request is successfully sent, or false otherwise
-	 * @see {@link CMClientStub#requestAttachedFileOfSNSContent(int, String, String)}
+	 * @see CMClientStub#requestAttachedFileOfSNSContent(int, String, String)
 	 */
 	public boolean requestAttachedFileOfSNSContent(String strFileName)
 	{
@@ -1826,7 +2230,7 @@ public class CMClientStub extends CMStub {
 	 * @param strWriterName - the name of a requesting user
 	 * @param strFileName - the requested file name
 	 * 
-	 * @see {@link CMClientStub#requestAttachedFileOfSNSContent(String)}
+	 * @see CMClientStub#requestAttachedFileOfSNSContent(String)
 	 */
 	public void requestAttachedFileOfSNSContent(int nContentID, String strWriterName, String strFileName)
 	{
@@ -1854,29 +2258,30 @@ public class CMClientStub extends CMStub {
 	 * <p> The detailed event fields of the ACCESS_ATTACHED_FILE event are described below:
 	 * 
 	 * <table border=1>
+	 * <caption>CMSNSEvent.ACCESS_ATTACHED_FILE event</caption>
 	 * <tr>
-	 *   <td> Event type </td> <td> CMInfo.CM_SNS_EVENT </td> 
+	 *   <td bgcolor="lightgrey"> Event type </td> <td> CMInfo.CM_SNS_EVENT </td> 
 	 * </tr>
 	 * <tr>
-	 *   <td> Event ID </td> <td> CMSNSEvent.ACCESS_ATTACHED_FILE </td>
+	 *   <td bgcolor="lightgrey"> Event ID </td> <td> CMSNSEvent.ACCESS_ATTACHED_FILE </td>
 	 * </tr>
-	 * <tr>
+	 * <tr bgcolor="lightgrey">
 	 *   <td> Event field </td> <td> Get method </td> <td> Description </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> User name </td> <td> {@link CMSNSEvent#getUserName()} </td> 
+	 *   <td bgcolor="lightgrey"> User name </td> <td> {@link CMSNSEvent#getUserName()} </td> 
 	 *   <td> The name of the file-accessing user </td> 
 	 * </tr>
 	 * <tr>
-	 *   <td> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
+	 *   <td bgcolor="lightgrey"> Content ID </td> <td> {@link CMSNSEvent#getContentID()} </td>
 	 *   <td> ID of the SNS content of which attached file is accessed </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> Writer name </td> <td> {@link CMSNSEvent#getWriterName()} </td>
+	 *   <td bgcolor="lightgrey"> Writer name </td> <td> {@link CMSNSEvent#getWriterName()} </td>
 	 *   <td> The writer name of the SNS content of which attached file is accessed </td>
 	 * </tr>
 	 * <tr>
-	 *   <td> Attached file name </td> <td> {@link CMSNSEvent#getFileName()} </td>
+	 *   <td bgcolor="lightgrey"> Attached file name </td> <td> {@link CMSNSEvent#getFileName()} </td>
 	 *   <td> The name of an attached file that the user accessed </td>
 	 * </tr>
 	 * </table>
@@ -1885,7 +2290,7 @@ public class CMClientStub extends CMStub {
 	 * @return true if the file access information is successfully sent to the server and if the corresponding 
 	 * SNS content is found at the client. Otherwise, the return value is false.
 	 * 
-	 * @see {@link CMClientStub#accessAttachedFileOfSNSContent(int, String, String)}
+	 * @see CMClientStub#accessAttachedFileOfSNSContent(int, String, String)
 	 */
 	// find the downloaded content and inform the server that the attached file is accessed by the client
 	public boolean accessAttachedFileOfSNSContent(String strFileName)
@@ -1938,7 +2343,7 @@ public class CMClientStub extends CMStub {
 	 * @param strWriterName - the writer name of the SNS content of which attached file is accessed
 	 * @param strFileName - the name of an attached file that the user accessed
 	 * 
-	 * @see {@link CMClientStub#accessAttachedFileOfSNSContent(String)}
+	 * @see CMClientStub#accessAttachedFileOfSNSContent(String)
 	 */
 	public void accessAttachedFileOfSNSContent(int nContentID, String strWriterName, String strFileName)
 	{
@@ -1955,6 +2360,58 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 
+	/**
+	 * Requests new additional server information from the default server.
+	 * 
+	 * <p> When the default server registers an additional server, it then notifies clients of 
+	 * the new server information. If a client is a late comer to the CM network, it can also 
+	 * explicitly request the information of additional servers from the default server.
+	 * <br> In any of the above two cases, the default server sends the NOTIFY_SERVER_INFO event 
+	 * of the {@link CMMultiServerEvent} class. This event contains the list of additional server information 
+	 * such as a server name, address, port number, and UDP port number. The detailed event fields of 
+	 * the NOTIFY_SERVER_INFO event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMMultiServerEvent.NOTIFY_SERVER_INFO event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_MULTI_SERVER_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMMultiServerEvent.NOTIFY_SERVER_INFO</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Number of servers</td><td>int</td><td>Number of additional servers</td><td>getServerNum()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Server list</td><td>Vector&lt;{@link CMServerInfo}&gt;</td><td>List of additional server information</td>
+	 * <td>getServerInfoList()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * <p> When the default server deletes an additional server by the deregistration request, it then sends 
+	 * the NOTIFY_SERVER_LEAVE event to clients. The event fields of the event are described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMMultiServerEvent.NOTIFY_SERVER_LEAVE event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_MULTI_SERVER_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMMultiServerEvent.NOTIFY_SERVER_LEAVE</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Server name</td><td>String</td><td>Name of an additional server that leaves the CM network</td>
+	 * <td>getServerName()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 */
 	public void requestServerInfo()
 	{
 		CMUser myself = getMyself();
@@ -1978,6 +2435,18 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Connects to a CM server.
+	 * 
+	 * <p>If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can connect to these servers by specifying a server name as the parameter. 
+	 * Connection to an additional server is made with an additional TCP channel created.
+	 * 
+	 * @param strServerName - the server name
+	 * @return true if the connection is successfully established; or false otherwise.
+	 * @see CMClientStub#connectToServer()
+	 * @see CMServerStub#connectToServer()
+	 */
 	public boolean connectToServer(String strServerName)
 	{
 		
@@ -1992,6 +2461,17 @@ public class CMClientStub extends CMStub {
 		return ret;
 	}
 	
+	/**
+	 * Disconnects from a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can disconnect from these servers by specifying a server name as the parameter. 
+	 * 
+	 * @param strServerName - the server name
+	 * @return true if the connection is successfully disconnected; or false otherwise.
+	 * @see CMClientStub#disconnectFromServer()
+	 * @see CMServerStub#disconnectFromServer()
+	 */
 	public boolean disconnectFromServer(String strServerName)
 	{
 		boolean ret = false;
@@ -2005,6 +2485,24 @@ public class CMClientStub extends CMStub {
 		return ret;
 	}
 	
+	/**
+	 * Logs in to a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can log in to these servers by specifying a server name.  
+	 * <br> The login process to an additional CM server is the almost same as that to the default server 
+	 * with the {@link CMClientStub#loginCM(String, String)} method.
+	 * Different part is that the login to an additional server requires the target server name, and that 
+	 * the multiple-server-related CM event is the {@link CMMultiServerEvent} class instead of the {@link CMSessionEvent}. 
+	 * Each event ID of the CMMultiServerEvent is preceded by the "ADD_" and the remaining ID word and its 
+	 * role is the same as that of the CMSessionEvent class. Event fields of the CMMultiServerEvent event is also 
+	 * the same as those of the CMSessionEvent except an additional field, the server name.
+	 * 
+	 * @param strServer - the server name
+	 * @param strUser - the user name
+	 * @param strPasswd - the password
+	 * @see CMClientStub#loginCM(String, String)
+	 */
 	public void loginCM(String strServer, String strUser, String strPasswd)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
@@ -2067,6 +2565,22 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Logs out from a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can log from one of these servers by specifying a server name.  
+	 * <br> The logout process from an additional CM server is the almost same as that from the default server 
+	 * with the {@link CMClientStub#logoutCM()} method.
+	 * Different part is that the logout from an additional server requires the target server name, and that 
+	 * the multiple-server-related CM event is the {@link CMMultiServerEvent} class instead of the {@link CMSessionEvent}. 
+	 * Each event ID of the CMMultiServerEvent is preceded by the "ADD_" and the remaining ID word and its 
+	 * role is the same as that of the CMSessionEvent class. Event fields of the CMMultiServerEvent event is also 
+	 * the same as those of the CMSessionEvent except an additional field, the server name.
+	 * 
+	 * @param strServer - the server name
+	 * @see CMClientStub#logoutCM()
+	 */
 	public void logoutCM(String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
@@ -2118,6 +2632,22 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Requests available session information from a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can request session information from one of these servers by specifying a server name.  
+	 * <br> The session-information-request process with an additional CM server is the almost same as that 
+	 * with the default server using the {@link CMClientStub#requestSessionInfo()} method.
+	 * Different part is that the request from an additional server requires the target server name, and that 
+	 * the multiple-server-related CM event is the {@link CMMultiServerEvent} class instead of the {@link CMSessionEvent}. 
+	 * Each event ID of the CMMultiServerEvent is preceded by the "ADD_" and the remaining ID word and its 
+	 * role is the same as that of the CMSessionEvent class. Event fields of the CMMultiServerEvent event is also 
+	 * the same as those of the CMSessionEvent except an additional field, the server name.
+	 * 
+	 * @param strServerName - the server name
+	 * @see CMClientStub#requestSessionInfo()
+	 */
 	// requests available session information of a designated server
 	public void requestSessionInfo(String strServerName)
 	{
@@ -2163,6 +2693,23 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Joins a session in a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can join a session in one of these servers by specifying a server name.  
+	 * <br> The session-join process with an additional CM server is the almost same as that 
+	 * with the default server using the {@link CMClientStub#joinSession(String)} method.
+	 * Different part is that the request from an additional server requires the target server name, and that 
+	 * the multiple-server-related CM event is the {@link CMMultiServerEvent} class instead of the {@link CMSessionEvent}. 
+	 * Each event ID of the CMMultiServerEvent is preceded by the "ADD_" and the remaining ID word and its 
+	 * role is the same as that of the CMSessionEvent class. Event fields of the CMMultiServerEvent event is also 
+	 * the same as those of the CMSessionEvent except an additional field, the server name.
+	 * 
+	 * @param strServer - the server name
+	 * @param strSession - the session name
+	 * @see CMClientStub#joinSession(String)
+	 */
 	public void joinSession(String strServer, String strSession)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
@@ -2224,6 +2771,22 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Leaves the current session in a CM server.
+	 * 
+	 * <p> If the CM network has multiple servers (the default server and additional servers), 
+	 * a CM client can leave the current session in one of these servers by specifying a server name.  
+	 * <br> The session-leave process in an additional CM server is the almost same as that 
+	 * in the default server using the {@link CMClientStub#leaveSession()} method.
+	 * Different part is that the request from an additional server requires the target server name, and that 
+	 * the multiple-server-related CM event is the {@link CMMultiServerEvent} class instead of the {@link CMSessionEvent}. 
+	 * Each event ID of the CMMultiServerEvent is preceded by the "ADD_" and the remaining ID word and its 
+	 * role is the same as that of the CMSessionEvent class. Event fields of the CMMultiServerEvent event is also 
+	 * the same as those of the CMSessionEvent except an additional field, the server name.
+	 * 
+	 * @param strServer - the server name
+	 * @see CMClientStub#leaveSession()
+	 */
 	public void leaveSession(String strServer)
 	{
 		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
@@ -2278,6 +2841,45 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Registers a user to the default server.
+	 * 
+	 * <p> A user can be registered to CM by the registerUser method of the CM client stub. 
+	 * If a CM client is connected to the default server, it can call this method. 
+	 * CM uses the registered user information for the user authentication when a user logs in to the default server.
+	 * 
+	 * <p> Whether the registration request is successful or not is set to a return code of a reply session event, 
+	 * REGISTER_USER_ACK. If the request is successful, the reply event also contains the registration time at the server. 
+	 * The details of the REGISTER_USER_ACK event are described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.REGISTER_USER_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.REGISTER_USER_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Return code</td><td>int</td>
+	 * <td>Result of the request <br>1: succeeded<br>0: failed
+	 * </td>
+	 * <td>getReturnCode()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Creation time</td><td>String</td><td>Time to register the user at the DB</td><td>getCreationTime()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @param strName - the user name
+	 * @param strPasswd - the password
+	 */
 	public void registerUser(String strName, String strPasswd)
 	{
 		int nState = -1;
@@ -2307,6 +2909,40 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Deregisters a user from the default server.
+	 * 
+	 * <p> A user can cancel his/her registration from CM by the deregisterUser method of 
+	 * the CM client stub. If a client is connected to the default server, it can call this method. 
+	 * When requested, CM removes the registered user information from the CM DB.
+	 * <br> Whether the deregistration request is successful or not is set to a return code of 
+	 * a reply session event, DEREGISTER_USER_ACK as described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.DEREGISTER_USER_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.DEREGISTER_USER_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Return code</td><td>int</td>
+	 * <td>Result of the request <br>1: succeeded<br>0: failed
+	 * </td>
+	 * <td>getReturnCode()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @param strName - the user name
+	 * @param strPasswd - the password
+	 */
 	public void deregisterUser(String strName, String strPasswd)
 	{
 		int nState = -1;
@@ -2338,6 +2974,42 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Finds a registered user.
+	 * 
+	 * <p> A user can search for another user by the findRegisteredUser method of the CM client stub. 
+	 * If a client is connected to the default server, it can call this method. When requested, 
+	 * CM provides the basic profile of the target user such as a name and registration time.
+	 * <br> Whether the requested user is found or not is set to a return code of a reply session event, 
+	 * FIND_REGISTERED_USER_ACK as described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSessionEvent.FIND_REGISTERED_USER_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SESSION_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSessionEvent.FIND_REGISTERED_USER_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Return code</td><td>int</td>
+	 * <td>Result of the request <br>1: succeeded<br>0: failed
+	 * </td>
+	 * <td>getReturnCode()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Creation time</td><td>String</td><td>Time to create the user at DB</td><td>getCreationTime()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @param strName - the user name
+	 */
 	public void findRegisteredUser(String strName)
 	{
 		int nState = -1;
@@ -2368,6 +3040,45 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Adds a new friend user.
+	 * 
+	 * <p> A client can add a user as its friend only if the user name has been registered to CM. 
+	 * When the default server receives the request for adding a new friend, it first checks 
+	 * if the friend is a registered user or not. If the friend is a registered user, the server 
+	 * adds it to the friend table of the CM DB as a friend of the requesting user. Otherwise, 
+	 * the request fails. In any case, the server sends the ADD_NEW_FRIEND_ACK event with a result 
+	 * code to the requesting client so that it can figure out the request result.
+	 * The detailed information of the ADD_NEW_FRIEND_ACK event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSNSEvent.ADD_NEW_FRIEND_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SNS_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSNSEvent.ADD_NEW_FRIEND_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Return code</td><td>int</td>
+	 * <td>Result of the request <br>1: succeeded<br>0: failed
+	 * </td>
+	 * <td>getReturnCode()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Friend name</td><td>String</td><td>Friend name</td><td>getFriendName()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @param strFriendName - the friend name
+	 * @see CMClientStub#removeFriend(String)
+	 */
 	public void addNewFriend(String strFriendName)
 	{
 		int nState = -1;
@@ -2391,6 +3102,44 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Removes a friend.
+	 * 
+	 * <p> When the default server receives the request for deleting a friend, it searches for 
+	 * the friend of the requesting user. If the friend is found, the server deletes 
+	 * the corresponding entry from the friend table. Otherwise, the request fails. 
+	 * The result of the request is sent to the requesting client as the REMOVE_FRIEND_ACK event 
+	 * with a result code.
+	 * The detailed information of the REMOVE_FRIEND_ACK event is described below.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSNSEvent.REMOVE_FRIEND_ACK event</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SNS_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td><td>CMSNSEvent.REMOVE_FRIEND_ACK</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Return code</td><td>int</td>
+	 * <td>Result of the request <br>1: succeeded<br>0: failed
+	 * </td>
+	 * <td>getReturnCode()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Friend name</td><td>String</td><td>Friend name</td><td>getFriendName()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @param strFriendName - the friend name
+	 * @see CMClientStub#addNewFriend(String)
+	 */
 	public void removeFriend(String strFriendName)
 	{
 		int nState = -1;
@@ -2414,6 +3163,64 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Requests to retrieve current friends list of this client.
+	 * 
+	 * <p> Different SNS applications use the concept of a friend in different ways. 
+	 * In some applications, a user can add another user in his/her friend list without 
+	 * the agreement of the target user. In other applications, a user can add a friend 
+	 * only if the other user accepts the friend request. CM supports such different policies 
+	 * of the friend management by methods that request different user lists. 
+	 * <br>The requestFriendsList method requests the list of users whom the requesting user adds 
+	 * as his/her friends regardless of the acceptance of the others. 
+	 * <br>The {@link CMClientStub#requestFriendRequestersList()} method requests the list of users 
+	 * who add the requesting user as a friend, but whom the requesting user has not added 
+	 * as friends yet. 
+	 * <br>The {@link CMClientStub#requestBiFriendsList()} method requests the list 
+	 * of users who add the requesting user as a friend and whom the requesting user adds as friends. 
+	 * 
+	 * <p> When the default server receives the request for friends, requesters, or bi-friends 
+	 * from a client, it sends corresponding user list as the RESPONSE_FRIEND_LIST, 
+	 * RESPONSE_FRIEND_REQUESTER_LIST, or RESPONSE_BI_FRIEND_LIST event to the requesting client. 
+	 * The three events have the same event fields as described below. 
+	 * One of the event fields is the friend list, but the meaning of the list is different 
+	 * according to an event ID. The friend list contains a maximum of 50 user names. 
+	 * If the total number exceeds 50, the server then sends the event more than once.
+	 * 
+	 * <table border=1>
+	 * <caption>CMSNSEvent.RESPONSE_FRIEND_LIST, RESPONSE_FRIEND_REQUESTER_LIST, 
+	 * RESPONSE_BI_FRIEND_LIST events</caption>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event type</td><td>CMInfo.CM_SNS_EVENT</td>
+	 * </tr>
+	 * <tr>
+	 * <td bgcolor="lightgrey">Event ID</td>
+	 * <td>CMSNSEvent.RESPONSE_FRIEND_LIST<br>CMSNSEvent.RESPONSE_FRIEND_REQUESTER_LIST
+	 * <br>CMSNSEvent.RESPONSE_BI_FRIEND_LIST</td>
+	 * </tr>
+	 * <tr bgcolor="lightgrey">
+	 * <td>Event field</td><td>Field data type</td><td>Field definition</td><td>Get method</td>
+	 * </tr>
+	 * <tr>
+	 * <td>User name</td><td>String</td><td>Requester user name</td><td>getUserName()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Total number of friends</td><td>int</td><td>Total number of requested friends</td>
+	 * <td>getTotalNumFriends()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Number of friends</td><td>int</td><td>Number of requested friends in this event</td>
+	 * <td>getNumFriends()</td>
+	 * </tr>
+	 * <tr>
+	 * <td>Friend list</td><td>ArrayList&lt;String&gt;</td><td>List of requested friend names</td>
+	 * <td>getFriendList()</td>
+	 * </tr>
+	 * </table>
+	 * 
+	 * @see CMClientStub#requestFriendRequestersList()
+	 * @see CMClientStub#requestBiFriendsList()
+	 */
 	public void requestFriendsList()
 	{
 		int nState = -1;
@@ -2436,6 +3243,14 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Requests to retrieve current friend-requesters list of this client.
+	 * 
+	 * <p> The detailed information is described in the {@link CMClientStub#requestFriendsList()} method.
+	 * 
+	 * @see CMClientStub#requestFriendsList()
+	 * @see CMClientStub#requestBiFriendsList()
+	 */
 	public void requestFriendRequestersList()
 	{
 		int nState = -1;
@@ -2458,6 +3273,14 @@ public class CMClientStub extends CMStub {
 		return;
 	}
 	
+	/**
+	 * Requests to retrieve current bi-friends list of this client.
+	 * 
+	 * <p> The detailed information is described in the {@link CMClientStub#requestFriendsList()} method.
+	 * 
+	 * @see CMClientStub#requestFriendsList()
+	 * @see CMClientStub#requestFriendRequestersList()
+	 */
 	public void requestBiFriendsList()
 	{
 		int nState = -1;
@@ -2479,4 +3302,99 @@ public class CMClientStub extends CMStub {
 		se = null;
 		return;
 	}
+	
+	/**
+	 * gets the string representation of current channels information.
+	 * 
+	 * <p> This method overrides the {@link CMStub#getCurrentChannelInfo()} method.
+	 * It firstly calls the parent method to get the current datagram channel information, 
+	 * and then also gets the current blocking/non-blocking socket channel mostly to servers.
+	 * 
+	 * @return string of current channels information if successful, or null otherwise.
+	 * 
+	 * @see CMStub#getCurrentChannelInfo()
+	 * @see CMServerStub#getCurrentChannelInfo()
+	 */
+	@Override
+	public String getCurrentChannelInfo()
+	{
+		StringBuffer sb = new StringBuffer();
+		CMInteractionInfo interInfo = m_cmInfo.getInteractionInfo();
+		CMServer defaultServer = interInfo.getDefaultServerInfo();
+		String strChInfo = null;
+		
+		// add datagram channel info of the CMStub class
+		String strSuperChInfo = super.getCurrentChannelInfo();
+		if(strSuperChInfo != null)
+			sb.append(strSuperChInfo);
+		
+		// add socket channel info of the default server
+		sb.append("==== default server: "+defaultServer.getServerName()+"\n");
+		
+		strChInfo = defaultServer.getNonBlockSocketChannelInfo().toString();
+		if(strChInfo != null)
+		{
+			sb.append("-- non-blocking socket channel\n");
+			sb.append(strChInfo);
+		}
+		
+		strChInfo = defaultServer.getBlockSocketChannelInfo().toString();
+		if(strChInfo != null)
+		{
+			sb.append("-- blocking socket channel\n");
+			sb.append(strChInfo);
+		}
+		
+		// add socket channel info of additional servers
+		Vector<CMServer> addServerList = interInfo.getAddServerList();
+		if(!addServerList.isEmpty())
+		{
+			Iterator<CMServer> iter = addServerList.iterator();
+			while(iter.hasNext())
+			{
+				CMServer addServer = iter.next();
+				sb.append("==== additional server: "+addServer.getServerName()+"\n");
+				strChInfo = addServer.getNonBlockSocketChannelInfo().toString();
+				if(strChInfo != null)
+				{
+					sb.append("-- non-blocking socket channel\n");
+					sb.append(strChInfo);
+				}
+				strChInfo = addServer.getBlockSocketChannelInfo().toString();
+				if(strChInfo != null)
+				{
+					sb.append("-- blocking socket channel\n");
+					sb.append(strChInfo);
+				}
+			}
+		}
+		
+		// add multicast channel info of the current group
+		CMUser myself = interInfo.getMyself();
+		if(myself == null)
+		{
+			System.err.println("CMClientStub.getCurrentChannelInfo(): the client info not found!");
+			return null;
+		}
+		String strCurrentSession = myself.getCurrentSession();
+		String strCurrentGroup = myself.getCurrentGroup();
+		if(strCurrentSession != null && strCurrentGroup != null)
+		{
+			CMSession curSession = interInfo.findSession(strCurrentSession);
+			if(curSession != null)
+			{
+				CMGroup curGroup = curSession.findGroup(strCurrentGroup);
+				strChInfo = curGroup.getMulticastChannelInfo().toString();
+				if(strChInfo != null)
+				{
+					sb.append("==== multicast channels: session("+strCurrentSession+"), group("
+							+strCurrentGroup+")\n");
+					sb.append(strChInfo);
+				}
+			}
+		}
+		
+		return sb.toString();
+	}
+	
 }

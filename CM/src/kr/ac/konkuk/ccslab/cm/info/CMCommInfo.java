@@ -5,17 +5,21 @@ import java.nio.channels.*;
 import kr.ac.konkuk.ccslab.cm.entity.CMChannelInfo;
 import kr.ac.konkuk.ccslab.cm.event.CMBlockingEventQueue;
 import kr.ac.konkuk.ccslab.cm.thread.CMByteReceiver;
+import kr.ac.konkuk.ccslab.cm.thread.CMByteSender;
 
 public class CMCommInfo {
 	private ServerSocketChannel m_nonBlockServerSocketChannel; // nonblocking server socket channel
 	private ServerSocketChannel m_blockServerSocketChannel; // blocking server socket channel
 	private CMChannelInfo<Integer> m_nonBlockDCInfo;	// nonblocking datagram channel list
+	private CMChannelInfo<Integer> m_blockDCInfo;		// blocking datagram channel list
 	//private Vector<SocketChannel> m_scList;
 	//private Vector<DatagramChannel> m_dcList;
 	//private Vector<MulticastChannel> m_mcList;
 	private Selector m_selector;
-	private CMBlockingEventQueue m_queue;
+	private CMBlockingEventQueue m_recvQueue;
+	private CMBlockingEventQueue m_sendQueue;
 	private CMByteReceiver m_byteReceiver;
+	private CMByteSender m_byteSender;
 	
 	//private Vector<SelectableChannel> m_toBeDeletedChannelList; 
 	//for datagram
@@ -34,7 +38,9 @@ public class CMCommInfo {
 		m_nonBlockServerSocketChannel = null;
 		m_blockServerSocketChannel = null;
 		m_nonBlockDCInfo = new CMChannelInfo<Integer>();
+		m_blockDCInfo = new CMChannelInfo<Integer>();
 		m_byteReceiver = null;
+		m_byteSender = null;
 		//m_scList = new Vector<SocketChannel>();
 		//m_dcList = new Vector<DatagramChannel>();
 		//m_mcList = new Vector<MulticastChannel>();
@@ -53,13 +59,19 @@ public class CMCommInfo {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		m_queue = new CMBlockingEventQueue();
+		m_recvQueue = new CMBlockingEventQueue();
+		m_sendQueue = new CMBlockingEventQueue();
 	}
 	
 	// set/get methods
-	public CMBlockingEventQueue getBlockingEventQueue()
+	public CMBlockingEventQueue getRecvBlockingEventQueue()
 	{
-		return m_queue;
+		return m_recvQueue;
+	}
+	
+	public CMBlockingEventQueue getSendBlockingEventQueue()
+	{
+		return m_sendQueue;
 	}
 	
 	public void setNonBlockServerSocketChannel(ServerSocketChannel ssc)
@@ -90,6 +102,16 @@ public class CMCommInfo {
 	public CMByteReceiver getByteReceiver()
 	{
 		return m_byteReceiver;
+	}
+	
+	public void setByteSender(CMByteSender sender)
+	{
+		m_byteSender = sender;
+	}
+	
+	public CMByteSender getByteSender()
+	{
+		return m_byteSender;
 	}
 	
 	/*
@@ -162,6 +184,11 @@ public class CMCommInfo {
 	public CMChannelInfo<Integer> getNonBlockDatagramChannelInfo()
 	{
 		return m_nonBlockDCInfo;
+	}
+	
+	public CMChannelInfo<Integer> getBlockDatagramChannelInfo()
+	{
+		return m_blockDCInfo;
 	}
 		
 	/*

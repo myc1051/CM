@@ -1,5 +1,7 @@
 import java.util.Iterator;
 import java.io.*;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SocketChannel;
 
 import kr.ac.konkuk.ccslab.cm.event.CMDummyEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMEvent;
@@ -152,6 +154,12 @@ public class CMWinServerEventHandler implements CMEventHandler {
 			printMessage("["+ie.getUserName()+"] leaves group("+ie.getHandlerGroup()+") in session("
 					+ie.getHandlerSession()+").\n");
 			break;
+		case CMInterestEvent.USER_TALK:
+			//System.out.println("("+ie.getHandlerSession()+", "+ie.getHandlerGroup()+")");
+			printMessage("("+ie.getHandlerSession()+", "+ie.getHandlerGroup()+")\n");
+			//System.out.println("<"+ie.getUserName()+">: "+ie.getTalk());
+			printMessage("<"+ie.getUserName()+">: "+ie.getTalk()+"\n");
+			break;
 		default:
 			return;
 		}
@@ -236,6 +244,66 @@ public class CMWinServerEventHandler implements CMEventHandler {
 			}
 			
 		}
+		else if(ue.getStringID().equals("reqRecv"))
+		{
+			strUser = ue.getEventField(CMInfo.CM_STR, "user");
+			int nChType = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chType"));
+			int nChKey = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chKey"));
+			int nRecvPort = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "recvPort"));
+			CMUserEvent userEvent = new CMUserEvent();
+			userEvent.setStringID("repRecv");
+			userEvent.setEventField(CMInfo.CM_STR, "receiver", m_serverStub.getMyself().getName());
+			userEvent.setEventField(CMInfo.CM_INT, "chType", Integer.toString(nChType));
+			userEvent.setEventField(CMInfo.CM_INT, "chKey", Integer.toString(nChKey));
+			userEvent.setEventField(CMInfo.CM_INT, "recvPort", Integer.toString(nRecvPort));
+			m_serverStub.send(userEvent, strUser);
+			
+			printMessage("["+strUser+"] requested to receive a dummy event ");
+			
+			SocketChannel sc = null;
+			DatagramChannel dc = null;
+			CMDummyEvent due = null;
+			if(nChType == CMInfo.CM_SOCKET_CHANNEL)
+			{
+				printMessage("with the blocking socket channel ("+nChKey+").\n");
+				sc = m_serverStub.getBlockSocketChannel(nChKey, strUser);
+				if(sc == null)
+				{
+					System.err.println("CMWinServerEventHandler.processUserEvent(): reqRecv, socket channel not found, key("
+							+nChKey+"), user("+strUser+")!");
+					return;
+				}
+				
+				due = (CMDummyEvent) m_serverStub.receive(sc);
+				if(due == null)
+				{
+					System.err.println("CMWinServerEventHandler.processUserEvent(): reqRecv, failed to receive a dummy event!");
+					return;
+				}
+				printMessage("received dummy info: "+due.getDummyInfo()+"\n");
+
+			}
+			else if(nChType == CMInfo.CM_DATAGRAM_CHANNEL)
+			{
+				printMessage("with the blocking datagram channel port("+nRecvPort+").\n");
+				dc = m_serverStub.getBlockDatagramChannel(nRecvPort);
+				if(dc == null)
+				{
+					System.err.println("CMWinServerEventHandler.processUserEvent(): reqRecv, datagram channel not found, recvPort("
+							+nRecvPort+")!");
+					return;
+				}
+				
+				due = (CMDummyEvent) m_serverStub.receive(dc);
+				if(due == null)
+				{
+					System.err.println("CMWinServerEventHandler.processUserEvent(): reqRecv, failed to receive a dummy event!");
+					return;
+				}
+				printMessage("received dummy info: "+due.getDummyInfo()+"\n");				
+			}
+			
+		}
 		else
 		{
 			//System.out.println("CMUserEvent received, strID("+ue.getStringID()+")");
@@ -282,7 +350,7 @@ public class CMWinServerEventHandler implements CMEventHandler {
 		case CMFileEvent.REQUEST_FILE_TRANSFER:
 		case CMFileEvent.REQUEST_FILE_TRANSFER_CHAN:
 			//System.out.println("["+fe.getUserName()+"] requests file("+fe.getFileName()+").");
-			printMessage("["+fe.getUserName()+"] requests file("+fe.getFileName()+").\n");
+			printMessage("["+fe.getReceiverName()+"] requests file("+fe.getFileName()+").\n");
 			break;
 		case CMFileEvent.START_FILE_TRANSFER:
 		case CMFileEvent.START_FILE_TRANSFER_CHAN:
@@ -304,8 +372,15 @@ public class CMWinServerEventHandler implements CMEventHandler {
 			break;
 		case CMFileEvent.REQUEST_DIST_FILE_PROC:
 			//System.out.println("["+fe.getUserName()+"] requests the distributed file processing.");
-			printMessage("["+fe.getUserName()+"] requests the distributed file processing.\n");
+			printMessage("["+fe.getReceiverName()+"] requests the distributed file processing.\n");
 			m_bDistFileProc = true;
+			break;
+		case CMFileEvent.CANCEL_FILE_SEND:
+		case CMFileEvent.CANCEL_FILE_SEND_CHAN:
+			printMessage("["+fe.getSenderName()+"] cancelled the file transfer.\n");
+			break;
+		case CMFileEvent.CANCEL_FILE_RECV_CHAN:
+			printMessage("["+fe.getReceiverName()+"] cancelled the file request.\n");
 			break;
 		}
 		return;

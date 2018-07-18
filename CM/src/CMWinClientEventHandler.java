@@ -33,7 +33,7 @@ public class CMWinClientEventHandler implements CMEventHandler{
 	private CMWinClient m_client;
 	private CMClientStub m_clientStub;
 	private long m_lDelaySum;	// for forwarding simulation
-	private long m_lStartTime;	// for delay of SNS content downloading, distributed file processing
+	private long m_lStartTime;	// for delay of SNS content downloading, distributed file processing, server response
 	private int m_nEstDelaySum;	// for SNS downloading simulation
 	private int m_nSimNum;		// for simulation of multiple sns content downloading
 	private FileOutputStream m_fos;	// for storing downloading delay of multiple SNS content
@@ -70,6 +70,11 @@ public class CMWinClientEventHandler implements CMEventHandler{
 	public void setStartTime(long time)
 	{
 		m_lStartTime = time;
+	}
+	
+	public long getStartTime()
+	{
+		return m_lStartTime;
 	}
 	
 	public void setFileOutputStream(FileOutputStream fos)
@@ -199,29 +204,36 @@ public class CMWinClientEventHandler implements CMEventHandler{
 	
 	private void processSessionEvent(CMEvent cme)
 	{
+		long lDelay = 0;
 		CMSessionEvent se = (CMSessionEvent)cme;
 		switch(se.getID())
 		{
 		case CMSessionEvent.LOGIN_ACK:
+			lDelay = System.currentTimeMillis() - m_lStartTime;
+			printMessage("LOGIN_ACK delay: "+lDelay+" ms.\n");
 			if(se.isValidUser() == 0)
 			{
-				//System.out.println("This client fails authentication by the default server.");
-				printMessage("This client fails authentication by the default server.\n");				
+				printMessage("This client fails authentication by the default server!\n");
+			}
+			else if(se.isValidUser() == -1)
+			{
+				printMessage("This client is already in the login-user list!\n");
 			}
 			else
 			{
-				//System.out.println("This client successfully logs in to the default server.");
 				printMessage("This client successfully logs in to the default server.\n");
 				CMInteractionInfo interInfo = m_clientStub.getCMInfo().getInteractionInfo();
 				
 				// Change the title of the client window
-				m_client.setTitle("CM Client ("+interInfo.getMyself().getName()+")");
+				m_client.setTitle("CM Client ["+interInfo.getMyself().getName()+"]");
 
 				// Set the appearance of buttons in the client frame window
 				m_client.setButtonsAccordingToClientState();
 			}
 			break;
 		case CMSessionEvent.RESPONSE_SESSION_INFO:
+			lDelay = System.currentTimeMillis() - m_lStartTime;
+			printMessage("RESPONSE_SESSION_INFO delay: "+lDelay+" ms.\n");
 			processRESPONSE_SESSION_INFO(se);
 			break;
 		case CMSessionEvent.SESSION_TALK:
@@ -231,6 +243,8 @@ public class CMWinClientEventHandler implements CMEventHandler{
 			printMessage("<"+se.getUserName()+">: "+se.getTalk()+"\n");
 			break;
 		case CMSessionEvent.JOIN_SESSION_ACK:
+			lDelay = System.currentTimeMillis() - m_lStartTime;
+			printMessage("JOIN_SESSION_ACK delay: "+lDelay+" ms.\n");
 			m_client.setButtonsAccordingToClientState();
 			break;
 		case CMSessionEvent.ADD_NONBLOCK_SOCKET_CHANNEL_ACK:
@@ -246,6 +260,8 @@ public class CMWinClientEventHandler implements CMEventHandler{
 			}
 			break;
 		case CMSessionEvent.ADD_BLOCK_SOCKET_CHANNEL_ACK:
+			lDelay = System.currentTimeMillis() - m_lStartTime;
+			printMessage("ADD_BLOCK_SOCKET_CHANNEL_ACK delay: "+lDelay+" ms.\n");
 			if(se.getReturnCode() == 0)
 			{
 				printMessage("Adding a blocking socket channel ("+se.getChannelName()+","+se.getChannelNum()
@@ -258,6 +274,8 @@ public class CMWinClientEventHandler implements CMEventHandler{
 			}
 			break;
 		case CMSessionEvent.REMOVE_BLOCK_SOCKET_CHANNEL_ACK:
+			lDelay = System.currentTimeMillis() - m_lStartTime;
+			printMessage("REMOVE_BLOCK_SOCKET_CHANNEL_ACK delay: "+lDelay+" ms.\n");
 			if(se.getReturnCode() == 0)
 			{
 				printMessage("Removing a blocking socket channel ("+se.getChannelName()+","+se.getChannelNum()
@@ -313,6 +331,11 @@ public class CMWinClientEventHandler implements CMEventHandler{
 				printMessage("User profile search failed: user["+se.getUserName()+"]!\n");
 			}
 			break;
+		case CMSessionEvent.UNEXPECTED_SERVER_DISCONNECTION:
+			m_client.printStyledMessage("Unexpected disconnection from the default server!\n", "bold");
+			m_client.setButtonsAccordingToClientState();
+			m_client.setTitle("CM Client");
+			break;
 		default:
 			return;
 		}
@@ -322,9 +345,6 @@ public class CMWinClientEventHandler implements CMEventHandler{
 	{
 		Iterator<CMSessionInfo> iter = se.getSessionInfoList().iterator();
 
-		//System.out.format("%-60s%n", "------------------------------------------------------------");
-		//System.out.format("%-20s%-20s%-10s%-10s%n", "name", "address", "port", "user num");
-		//System.out.format("%-60s%n", "------------------------------------------------------------");
 		printMessage(String.format("%-60s%n", "------------------------------------------------------------"));
 		printMessage(String.format("%-20s%-20s%-10s%-10s%n", "name", "address", "port", "user num"));
 		printMessage(String.format("%-60s%n", "------------------------------------------------------------"));
@@ -332,8 +352,6 @@ public class CMWinClientEventHandler implements CMEventHandler{
 		while(iter.hasNext())
 		{
 			CMSessionInfo tInfo = iter.next();
-			//System.out.format("%-20s%-20s%-10d%-10d%n", tInfo.getSessionName(), tInfo.getAddress(), 
-			//		tInfo.getPort(), tInfo.getUserNum());
 			printMessage(String.format("%-20s%-20s%-10d%-10d%n", tInfo.getSessionName(), tInfo.getAddress(), 
 					tInfo.getPort(), tInfo.getUserNum()));
 		}
@@ -423,6 +441,29 @@ public class CMWinClientEventHandler implements CMEventHandler{
 			printMessage("Received user envet 'EndForwardDelay', avg delay("+m_lDelaySum/nSendNum+" ms)\n");
 			m_lDelaySum = 0;
 		}
+		else if(ue.getStringID().equals("repRecv"))
+		{
+			String strReceiver = ue.getEventField(CMInfo.CM_STR, "receiver");
+			int nBlockingChannelType = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chType"));
+			int nBlockingChannelKey = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "chKey"));
+			int nRecvPort = Integer.parseInt(ue.getEventField(CMInfo.CM_INT, "recvPort"));
+			int opt = -1;
+			if(nBlockingChannelType == CMInfo.CM_SOCKET_CHANNEL)
+				opt = CMInfo.CM_STREAM;
+			else if(nBlockingChannelType == CMInfo.CM_DATAGRAM_CHANNEL)
+				opt = CMInfo.CM_DATAGRAM;
+
+			CMDummyEvent due = new CMDummyEvent();
+			due.setDummyInfo("This is a test message to test a blocking channel");
+			System.out.println("Sending a dummy event to ("+strReceiver+")..");
+			
+			if(opt == CMInfo.CM_STREAM)
+				m_clientStub.send(due, strReceiver, opt, nBlockingChannelKey, true);
+			else if(opt == CMInfo.CM_DATAGRAM)
+				m_clientStub.send(due, strReceiver, opt, nBlockingChannelKey, nRecvPort, true);
+			else
+				System.err.println("invalid sending option!: "+opt);
+		}
 		else
 		{
 			//System.out.println("CMUserEvent received, strID("+ue.getStringID()+")");
@@ -469,7 +510,7 @@ public class CMWinClientEventHandler implements CMEventHandler{
 		case CMFileEvent.REQUEST_FILE_TRANSFER:
 		case CMFileEvent.REQUEST_FILE_TRANSFER_CHAN:
 			//System.out.println("["+fe.getUserName()+"] requests file("+fe.getFileName()+").");
-			printMessage("["+fe.getUserName()+"] requests file("+fe.getFileName()+").\n");
+			printMessage("["+fe.getReceiverName()+"] requests file("+fe.getFileName()+").\n");
 			break;
 		case CMFileEvent.REPLY_FILE_TRANSFER:
 		case CMFileEvent.REPLY_FILE_TRANSFER_CHAN:
@@ -505,6 +546,13 @@ public class CMWinClientEventHandler implements CMEventHandler{
 				}
 				m_bReqAttachedFile = false;
 			}
+			break;
+		case CMFileEvent.CANCEL_FILE_SEND:
+		case CMFileEvent.CANCEL_FILE_SEND_CHAN:
+			printMessage("["+fe.getSenderName()+"] cancelled the file transfer.\n");
+			break;
+		case CMFileEvent.CANCEL_FILE_RECV_CHAN:
+			printMessage("["+fe.getReceiverName()+"] cancelled the file request.\n");
 			break;
 		}
 		return;

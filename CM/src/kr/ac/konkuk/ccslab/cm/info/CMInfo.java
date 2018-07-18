@@ -16,9 +16,11 @@ public class CMInfo {
 	public static final int EVENT_FIELD_LEN = 20;
 	public static final int TALK_LEN = 256;
 	public static final int DUMMY_LEN = 256;
-	public static final int FILE_BLOCK_LEN = 4092;
+	public static final int FILE_BLOCK_LEN = 4096;
 	public static final int SO_SNDBUF_LEN = 8192;
 	public static final int SO_RCVBUF_LEN = 8192;
+	public static final int MAX_EVENT_SIZE = 8192;
+	public static final int MIN_EVENT_SIZE = 32;
 	
 	// big/little endian
 	public static final int CM_BIG_ENDIAN = 0;
@@ -96,6 +98,11 @@ public class CMInfo {
 	public static final int SNS_ATTACH_PARTIAL = 1;
 	public static final int SNS_ATTACH_PREFETCH = 2;
 	public static final int SNS_ATTACH_NONE = 3;
+	
+	// append mode of the file transfer
+	public static final byte FILE_DEFAULT = -1;	// determined by the configuration file
+	public static final byte FILE_OVERWRITE = 0;
+	public static final byte FILE_APPEND = 1;
 	
 	// repository
 	private CMConfigurationInfo m_confInfo;

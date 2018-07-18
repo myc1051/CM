@@ -1,19 +1,19 @@
 import java.io.*;
+import java.nio.channels.DatagramChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
-
-import javax.swing.JOptionPane;
-import javax.swing.JTextField;
 
 import kr.ac.konkuk.ccslab.cm.entity.CMGroup;
 import kr.ac.konkuk.ccslab.cm.entity.CMGroupInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMPosition;
 import kr.ac.konkuk.ccslab.cm.entity.CMServer;
 import kr.ac.konkuk.ccslab.cm.entity.CMSession;
+import kr.ac.konkuk.ccslab.cm.entity.CMSessionInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMUser;
 import kr.ac.konkuk.ccslab.cm.event.CMDummyEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMInterestEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMSessionEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMUserEvent;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
@@ -27,7 +27,7 @@ public class CMClientApp {
 	private CMClientStub m_clientStub;
 	private CMClientEventHandler m_eventHandler;
 	private boolean m_bRun;
-	private Scanner scan = null;
+	private Scanner m_scan = null;
 	
 	public CMClientApp()
 	{
@@ -53,7 +53,7 @@ public class CMClientApp {
 	{
 		System.out.println("client application starts.");
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-		scan = new Scanner(System.in);
+		m_scan = new Scanner(System.in);
 		String strInput = null;
 		int nCommand = -1;
 		while(m_bRun)
@@ -78,196 +78,190 @@ public class CMClientApp {
 			switch(nCommand)
 			{
 			case 0:
-				System.out.println("---------------------------------------------------");
-				System.out.println("0: help, 1: connect to default server, 2: disconnect from default server");
-				System.out.println("3: login to default server, 4: logout from default server");
-				System.out.println("5: request session info from default server, 6: join session of defalut server, 7: leave session of default server");
-				System.out.println("8: user position, 9: chat, 10: test CMDummyEvent, 11: test datagram message");
-				System.out.println("12: test CMUserEvent, 13: print group info, 14: print current user status");
-				System.out.println("15: change group, 16: add additional channel, 17: remove additional channel");
-				System.out.println("18: set file path, 19: request file, 20: push file");
-				System.out.println("21: test forwarding schemes, 22: test delay of forwarding schemes");
-				System.out.println("---------------------------------------------------");
-				System.out.println("23: download new SNS content, 50: request attached file of SNS content");
-				System.out.println("51: download next SNS content, 52: download previous SNS content");
-				System.out.println("24: test repeated downloading of SNS content, 25: SNS content upload");
-				System.out.println("26: register user, 27: deregister user");
-				System.out.println("28: find registered user, 29: add a new friend, 30: remove a friend");
-				System.out.println("31: request current friend list, 32: request friend requester list");
-				System.out.println("33: request bi-directional friends");
-				System.out.println("---------------------------------------------------");
-				System.out.println("34: request additional server info");
-				System.out.println("35: connect to a designated server, 36: disconnect from a designated server");
-				System.out.println("37: log in to a designated server, 38: log out from a designated server");
-				System.out.println("39: request session info from a designated server");
-				System.out.println("40: join a session of a designated server, 41: leave a session of a designated server");
-				System.out.println("42: print group info of a designated server");
-				System.out.println("---------------------------------------------------");
-				System.out.println("43: pull/push multiple files, 44: split a file, 45: merge files");
-				System.out.println("46: distribute a file and merge");
-				System.out.println("---------------------------------------------------");
-				System.out.println("47: multicast chat in current group");
-				System.out.println("48: get additional blocking socket channel");
-				System.out.println("99: terminate CM");
+				printAllMenus();
 				break;
+			case 999:
+				testTerminateCM();
+				break;			
 			case 1: // connect to default server
 				testConnectionDS();
 				break;
 			case 2: // disconnect from default server
 				testDisconnectionDS();
 				break;
-			case 3: // login to default server
-				testLoginDS();
-				break;
-			case 4: // logout from default server
-				testLogoutDS();
-				break;
-			case 5: // request session info from default server
-				testSessionInfoDS();
-				break;
-			case 6: // join a session
-				testJoinSession();
-				break;
-			case 7: // leave the current session
-				testLeaveSession();
-				break;
-			case 8: // user position
-				testUserPosition();
-				break;
-			case 9: // chat
-				testChat();
-				break;
-			case 10: // test CMDummyEvent
-				testDummyEvent();
-				break;
-			case 11: // test datagram message
-				testDatagram();
-				break;
-			case 12: // test CMUserEvent
-				testUserEvent();
-				break;
-			case 13: // print group info
-				testPrintGroupInfo();
-				break;
-			case 14: // print current information about the client
-				testCurrentUserStatus();
-				break;
-			case 15: // change current group
-				testChangeGroup();
-				break;
-			case 16: // add additional channel
-				testAddChannel();
-				break;
-			case 17: // remove additional channel
-				testRemoveChannel();
-				break;
-			case 18: // set file path
-				testSetFilePath();
-				break;
-			case 19: // request a file
-				testRequestFile();
-				break;
-			case 20: // push a file
-				testPushFile();
-				break;
-			case 21: // test forwarding schemes (typical vs. internal)
-				testForwarding();
-				break;
-			case 22: // test delay of forwarding schemes
-				testForwardingDelay();
-				break;
-			case 23: // test SNS content download
-				testDownloadNewSNSContent();
-				break;
-			case 24: // test repeated downloading of SNS content
-				testRepeatedSNSContentDownload();
-				break;
-			case 25: // test SNS content upload
-				testSNSContentUpload();
-				break;
-			case 26: // register user
-				testRegisterUser();
-				break;
-			case 27: // deregister user
-				testDeregisterUser();
-				break;
-			case 28: // find user
-				testFindRegisteredUser();
-				break;
-			case 29: // add a new friend
-				testAddNewFriend();
-				break;
-			case 30: // remove a friend
-				testRemoveFriend();
-				break;
-			case 31: // request current friends list
-				testRequestFriendsList();
-				break;
-			case 32: // request friend requesters list
-				testRequestFriendRequestersList();
-				break;
-			case 33: // request bi-directional friends
-				testRequestBiFriendsList();
-				break;
-			case 34: // request additional server info
-				testRequestServerInfo();
-				break;
-			case 35: // connect to a designated server
+			case 3: // connect to a designated server
 				testConnectToServer();
 				break;
-			case 36: // disconnect from a designated server
+			case 4: // disconnect from a designated server
 				testDisconnectFromServer();
 				break;
-			case 37: // log in to a designated server
+			case 10: // asynchronous login to default server
+				testLoginDS();
+				break;
+			case 11: // synchronously login to default server
+				testSyncLoginDS();
+				break;
+			case 12: // logout from default server
+				testLogoutDS();
+				break;
+			case 13: // log in to a designated server
 				testLoginServer();
 				break;
-			case 38: // log out from a designated server
+			case 14: // log out from a designated server
 				testLogoutServer();
 				break;
-			case 39: // request session information from a designated server
+			case 20: // request session info from default server
+				testSessionInfoDS();
+				break;
+			case 21: // synchronously request session info from default server
+				testSyncSessionInfoDS();
+				break;
+			case 22: // join a session
+				testJoinSession();
+				break;
+			case 23: // synchronously join a session
+				testSyncJoinSession();
+				break;
+			case 24: // leave the current session
+				testLeaveSession();
+				break;
+			case 25: // change current group
+				testChangeGroup();
+				break;
+			case 26: // request session information from a designated server
 				testRequestSessionInfoOfServer();
 				break;
-			case 40: // join a session of a designated server
+			case 27: // join a session of a designated server
 				testJoinSessionOfServer();
 				break;
-			case 41: // leave a session of a designated server
+			case 28: // leave a session of a designated server
 				testLeaveSessionOfServer();
 				break;
-			case 42: // print current group info of a designated server
-				testPrintGroupInfoOfServer();
+			case 40: // chat
+				testChat();
 				break;
-			case 43: // pull or push multiple files
-				testSendMultipleFiles();
-				break;
-			case 44: // split a file
-				testSplitFile();
-				break;
-			case 45: // merge files
-				testMergeFiles();
-				break;
-			case 46: // distribute a file and merge
-				testDistFileProc();
-				break;
-			case 47: // test multicast chat in current group
+			case 41: // test multicast chat in current group
 				testMulticastChat();
 				break;
-			case 48: // get additional blocking socket channel
-				testGetBlockSocketChannel();
+			case 42: // test CMDummyEvent
+				testDummyEvent();
 				break;
-			case 50: // test request for an attached file of SNS content
-				testRequestAttachedFileOfSNSContent();
+			case 43: // test CMUserEvent
+				testUserEvent();
 				break;
-			case 51: // test download next SNS content
+			case 44: // test datagram message
+				testDatagram();
+				break;			
+			case 45: // user position
+				testUserPosition();
+				break;			
+			case 50: // print group info
+				testPrintGroupInfo();
+				break;
+			case 51: // print current information about the client
+				testCurrentUserStatus();
+				break;
+			case 52: 	// print current channels information
+				testPrintCurrentChannelInfo();
+				break;
+			case 53: // request additional server info
+				testRequestServerInfo();
+				break;
+			case 54: // print current group info of a designated server
+				testPrintGroupInfoOfServer();
+				break;
+			case 55: // test input network throughput
+				testMeasureInputThroughput();
+				break;
+			case 56: // test output network throughput
+				testMeasureOutputThroughput();
+				break;
+			case 60: // add additional channel
+				testAddChannel();
+				break;
+			case 61: // remove additional channel
+				testRemoveChannel();
+				break;
+			case 62: // test blocking channel
+				testBlockingChannel();
+				break;
+			case 70: // set file path
+				testSetFilePath();
+				break;
+			case 71: // request a file
+				testRequestFile();
+				break;
+			case 72: // push a file
+				testPushFile();
+				break;
+			case 73:	// test cancel receiving a file
+				cancelRecvFile();
+				break;
+			case 74:	// test cancel sending a file
+				cancelSendFile();
+				break;
+			case 80: // test SNS content download
+				testDownloadNewSNSContent();
+				break;
+			case 81:
 				testDownloadNextSNSContent();
 				break;
-			case 52: // test download previous SNS content
+			case 82:
 				testDownloadPreviousSNSContent();
 				break;
-			case 99: // terminate CM
-				testTermination();
+			case 83: // request an attached file of SNS content
+				testRequestAttachedFileOfSNSContent();
+				break;
+			case 84: // test SNS content upload
+				testSNSContentUpload();
+				break;
+			case 90: // register user
+				testRegisterUser();
+				break;
+			case 91: // deregister user
+				testDeregisterUser();
+				break;
+			case 92: // find user
+				testFindRegisteredUser();
+				break;
+			case 93: // add a new friend
+				testAddNewFriend();
+				break;
+			case 94: // remove a friend
+				testRemoveFriend();
+				break;
+			case 95: // request current friends list
+				testRequestFriendsList();
+				break;
+			case 96: // request friend requesters list
+				testRequestFriendRequestersList();
+				break;
+			case 97: // request bi-directional friends
+				testRequestBiFriendsList();
+				break;
+			case 101: // test forwarding schemes (typical vs. internal)
+				testForwarding();
+				break;
+			case 102: // test delay of forwarding schemes
+				testForwardingDelay();
+				break;
+			case 103: // test repeated downloading of SNS content
+				testRepeatedSNSContentDownload();
+				break;
+			case 104: // pull or push multiple files
+				testSendMultipleFiles();
+				break;
+			case 105: // split a file
+				testSplitFile();
+				break;
+			case 106: // merge files
+				testMergeFiles();
+				break;
+			case 107: // distribute a file and merge
+				testDistFileProc();
 				break;
 			default:
-				System.out.println("Unknown command.");
+				System.err.println("Unknown command.");
 				break;
 			}
 		}
@@ -278,7 +272,53 @@ public class CMClientApp {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		scan.close();
+		m_scan.close();
+	}
+	
+	public void printAllMenus()
+	{
+		System.out.println("---------------------------------- Help");
+		System.out.println("0: show all menus");
+		System.out.println("---------------------------------- Start/Stop");
+		System.out.println("999: terminate CM");
+		System.out.println("---------------------------------- Connection");
+		System.out.println("1: connect to default server, 2: disconnect from default server");
+		System.out.println("3: connect to designated server, 4: disconnect from designated server");
+		System.out.println("---------------------------------- Login");
+		System.out.println("10: login to default server, 11: synchronously login to default server");
+		System.out.println("12: logout from default server");
+		System.out.println("13: login to designated server, 14: logout from designated server");
+		System.out.println("---------------------------------- Session/Group");
+		System.out.println("20: request session information from default server");
+		System.out.println("21: synchronously request session information from default server");
+		System.out.println("22: join session of default server, 23: synchronously join session of default server");
+		System.out.println("24: leave session of default server, 25: change group of default server");
+		System.out.println("26: request session information from designated server");
+		System.out.println("27: join session of designated server, 28: leave session of designated server");
+		System.out.println("---------------------------------- Event Transmission");
+		System.out.println("40: chat, 41: multicast chat in current group");
+		System.out.println("42: test CMDummyEvent, 43: test CMUserEvent, 44: test datagram event, 45: test user position");
+		System.out.println("---------------------------------- Information");
+		System.out.println("50: show group information of default server, 51: show current user status");
+		System.out.println("52: show current channels, 53: show current server information");
+		System.out.println("54: show group information of designated server");
+		System.out.println("55: measure input network throughput, 56: measure output network throughput");
+		System.out.println("---------------------------------- Channel");
+		System.out.println("60: add channel, 61: remove channel, 62: test blocking channel");
+		System.out.println("---------------------------------- File Transfer");
+		System.out.println("70: set file path, 71: request file, 72: push file");
+		System.out.println("73: cancel receiving file, 74: cancel sending file");
+		System.out.println("---------------------------------- Social Network Service");
+		System.out.println("80: request content list, 81: request next content list, 82: request previous content list");
+		System.out.println("83: request attached file, 84: upload content");
+		System.out.println("---------------------------------- User");
+		System.out.println("90: register new user, 91: deregister user, 92: find registered user");
+		System.out.println("93: add new friend, 94: remove friend, 95: show friends, 96: show friend requesters");
+		System.out.println("97: show bi-directional friends");
+		System.out.println("---------------------------------- Other CM Tests");
+		System.out.println("101: test forwarding scheme, 102: test delay of forwarding scheme");
+		System.out.println("103: test repeated request of SNS content list");
+		System.out.println("104: pull/push multiple files, 105: split file, 106: merge files, 107: distribute and merge file");
 	}
 	
 	public void testConnectionDS()
@@ -300,6 +340,7 @@ public class CMClientApp {
 		String strUserName = null;
 		String strPassword = null;
 		String strEncPassword = null;
+		boolean bRequestResult = false;
 		Console console = System.console();
 		if(console == null)
 		{
@@ -326,19 +367,84 @@ public class CMClientApp {
 		// encrypt password
 		strEncPassword = CMUtil.getSHA1Hash(strPassword);
 		
-		//m_clientStub.loginCM(strUserName, strPassword);
-		m_clientStub.loginCM(strUserName, strEncPassword);
+		bRequestResult = m_clientStub.loginCM(strUserName, strEncPassword);
+		if(bRequestResult)
+			System.out.println("successfully sent the login request.");
+		else
+			System.err.println("failed the login request!");
 		System.out.println("======");
+	}
+	
+	public void testSyncLoginDS()
+	{
+		String strUserName = null;
+		String strPassword = null;
+		String strEncPassword = null;
+		CMSessionEvent loginAckEvent = null;
+		Console console = System.console();
+		if(console == null)
+		{
+			System.err.println("Unable to obtain console.");
+		}
+		
+		System.out.println("====== login to default server");
+		System.out.print("user name: ");
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		try {
+			strUserName = br.readLine();
+			if(console == null)
+			{
+				System.out.print("password: ");
+				strPassword = br.readLine();
+			}
+			else
+				strPassword = new String(console.readPassword("password: "));
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		// encrypt password
+		strEncPassword = CMUtil.getSHA1Hash(strPassword);
+		
+		loginAckEvent = m_clientStub.syncLoginCM(strUserName, strEncPassword);
+		if(loginAckEvent != null)
+		{
+			// print login result
+			if(loginAckEvent.isValidUser() == 0)
+			{
+				System.err.println("This client fails authentication by the default server!");
+			}
+			else if(loginAckEvent.isValidUser() == -1)
+			{
+				System.err.println("This client is already in the login-user list!");
+			}
+			else
+			{
+				System.out.println("This client successfully logs in to the default server.");
+			}			
+		}
+		else
+		{
+			System.err.println("failed the login request!");
+		}
+
+		System.out.println("======");		
 	}
 	
 	public void testLogoutDS()
 	{
+		boolean bRequestResult = false;
 		System.out.println("====== logout from default server");
-		m_clientStub.logoutCM();
+		bRequestResult = m_clientStub.logoutCM();
+		if(bRequestResult)
+			System.out.println("successfully sent the logout request.");
+		else
+			System.err.println("failed the logout request!");
 		System.out.println("======");
 	}
 	
-	public void testTermination()
+	public void testTerminateCM()
 	{
 		m_clientStub.terminateCM();
 		m_bRun = false;
@@ -346,13 +452,68 @@ public class CMClientApp {
 
 	public void testSessionInfoDS()
 	{
+		boolean bRequestResult = false;
 		System.out.println("====== request session info from default server");
-		m_clientStub.requestSessionInfo();
+		bRequestResult = m_clientStub.requestSessionInfo();
+		if(bRequestResult)
+			System.out.println("successfully sent the session-info request.");
+		else
+			System.err.println("failed the session-info request!");
 		System.out.println("======");
+	}
+	
+	public void testSyncSessionInfoDS()
+	{
+		CMSessionEvent se = null;
+		System.out.println("====== synchronous request session info from default server");
+		se = m_clientStub.syncRequestSessionInfo();
+		if(se == null)
+		{
+			System.err.println("failed the session-info request!");
+			return;
+		}
+
+		// print the request result
+		Iterator<CMSessionInfo> iter = se.getSessionInfoList().iterator();
+
+		System.out.format("%-60s%n", "------------------------------------------------------------");
+		System.out.format("%-20s%-20s%-10s%-10s%n", "name", "address", "port", "user num");
+		System.out.format("%-60s%n", "------------------------------------------------------------");
+
+		while(iter.hasNext())
+		{
+			CMSessionInfo tInfo = iter.next();
+			System.out.format("%-20s%-20s%-10d%-10d%n", tInfo.getSessionName(), tInfo.getAddress(), 
+					tInfo.getPort(), tInfo.getUserNum());
+		}
+
+		System.out.println("======");		
 	}
 	
 	public void testJoinSession()
 	{
+		String strSessionName = null;
+		boolean bRequestResult = false;
+		System.out.println("====== join a session");
+		System.out.print("session name: ");
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		try {
+			strSessionName = br.readLine();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		bRequestResult = m_clientStub.joinSession(strSessionName);
+		if(bRequestResult)
+			System.out.println("successfully sent the session-join request.");
+		else
+			System.err.println("failed the session-join request!");
+		System.out.println("======");
+	}
+	
+	public void testSyncJoinSession()
+	{
+		CMSessionEvent se = null;
 		String strSessionName = null;
 		System.out.println("====== join a session");
 		System.out.print("session name: ");
@@ -363,14 +524,29 @@ public class CMClientApp {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		m_clientStub.joinSession(strSessionName);
-		System.out.println("======");
+		
+		se = m_clientStub.syncJoinSession(strSessionName);
+		if(se != null)
+		{
+			System.out.println("successfully joined a session that has ("+se.getGroupNum()+") groups.");
+		}
+		else
+		{
+			System.err.println("failed the session-join request!");
+		}
+		
+		System.out.println("======");		
 	}
 	
 	public void testLeaveSession()
 	{
+		boolean bRequestResult = false;
 		System.out.println("====== leave the current session");
-		m_clientStub.leaveSession();
+		bRequestResult = m_clientStub.leaveSession();
+		if(bRequestResult)
+			System.out.println("successfully sent the leave-session request.");
+		else
+			System.err.println("failed the leave-session request!");
 		System.out.println("======");
 	}
 	
@@ -478,6 +654,7 @@ public class CMClientApp {
 	public void testDatagram()
 	{
 		CMInteractionInfo interInfo = m_clientStub.getCMInfo().getInteractionInfo();
+		CMConfigurationInfo confInfo = m_clientStub.getCMInfo().getConfigurationInfo();
 		CMUser myself = interInfo.getMyself();
 
 		if(myself.getState() != CMInfo.CM_SESSION_JOIN)
@@ -488,22 +665,47 @@ public class CMClientApp {
 		
 		String strReceiver = null;
 		String strMessage = null;
-		System.out.println("====== test unicast chatting with datagram");
+		String strSendPort = null;
+		String strRecvPort = null;
+		int nSendPort = 0;
+		int nRecvPort = 0;
+		System.out.println("====== test unicast chatting with non-blocking datagram channels");
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-		System.out.print("receiver: ");
 		try {
+			System.out.print("receiver: ");
 			strReceiver = br.readLine();
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		System.out.print("message: ");
-		try {
+			System.out.print("message: ");
 			strMessage = br.readLine();
-		} catch (IOException e) {
+			System.out.print("sender port(enter for default port): ");
+			strSendPort = br.readLine();
+			System.out.print("receiver port(enter for default port): ");
+			strRecvPort = br.readLine();
+		} catch (IOException e1) {
 			// TODO Auto-generated catch block
-			e.printStackTrace();
+			e1.printStackTrace();
 		}
+
+		try {
+			if(strSendPort.isEmpty())
+				nSendPort = confInfo.getUDPPort();
+			else
+				nSendPort = Integer.parseInt(strSendPort);
+		}catch(NumberFormatException ne) {
+			ne.printStackTrace();
+			nSendPort = confInfo.getUDPPort();
+		}
+			
+		try {
+			if(strRecvPort.isEmpty())
+				nRecvPort = 0;
+			else
+				nRecvPort = Integer.parseInt(strRecvPort);			
+		}catch(NumberFormatException ne)
+		{
+			ne.printStackTrace();
+			nRecvPort = 0;
+		}
+		
 		
 		CMInterestEvent ie = new CMInterestEvent();
 		ie.setID(CMInterestEvent.USER_TALK);
@@ -511,7 +713,11 @@ public class CMClientApp {
 		ie.setHandlerGroup(myself.getCurrentGroup());
 		ie.setUserName(myself.getName());
 		ie.setTalk(strMessage);
-		m_clientStub.send(ie, strReceiver, CMInfo.CM_DATAGRAM);
+		
+		if(nRecvPort == 0)
+			m_clientStub.send(ie, strReceiver, CMInfo.CM_DATAGRAM, nSendPort);
+		else
+			m_clientStub.send(ie, strReceiver, CMInfo.CM_DATAGRAM, nSendPort, nRecvPort, false);
 		ie = null;
 		
 		System.out.println("======");
@@ -665,6 +871,7 @@ public class CMClientApp {
 		String strGroupName = null;
 		System.out.println("====== change group");
 		try {
+			System.out.print("input target group name: ");
 			strGroupName = br.readLine();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -695,6 +902,7 @@ public class CMClientApp {
 		String strBlock = null;
 		boolean isBlock = false;
 		SocketChannel sc = null;
+		DatagramChannel dc = null;
 		String strSync = null;
 		boolean isSyncCall = false;
 		
@@ -713,11 +921,11 @@ public class CMClientApp {
 		// ask channel type, (server name), channel index (integer greater than 0), addr, port
 		try{
 			System.out.print("Select channel type (SocketChannel:2, DatagramChannel:3, MulticastChannel:4): ");
-			nChType = scan.nextInt();
+			nChType = m_scan.nextInt();
 			if(nChType == CMInfo.CM_SOCKET_CHANNEL)
 			{
 				System.out.print("is it a blocking channel? (\"y\": yes, \"n\": no): ");
-				strBlock = scan.next();
+				strBlock = m_scan.next();
 				if(strBlock.equals("y")) isBlock = true;
 				else if(strBlock.equals("n")) isBlock = false;
 				else
@@ -729,7 +937,7 @@ public class CMClientApp {
 				if(isBlock)
 				{
 					System.out.print("Channel key(>=0): ");
-					nChKey = scan.nextInt();
+					nChKey = m_scan.nextInt();
 					if(nChKey < 0)
 					{
 						System.err.println("testAddChannel(), invalid blocking socket channel key ("+nChKey+")!");
@@ -739,7 +947,7 @@ public class CMClientApp {
 				else
 				{
 					System.out.print("Channel key(integer greater than 0): ");
-					nChKey = scan.nextInt();
+					nChKey = m_scan.nextInt();
 					if(nChKey <= 0)
 					{
 						System.err.println("testAddChannel(), invalid nonblocking socket channel key ("+nChKey+")!");
@@ -748,7 +956,7 @@ public class CMClientApp {
 				}
 				
 				System.out.print("Is the addition synchronous? (\"y\": yes, \"n\": no): ");
-				strSync = scan.next();
+				strSync = m_scan.next();
 				if(strSync.equals("y")) isSyncCall = true;
 				else if(strSync.equals("n")) isSyncCall =false;
 				else
@@ -758,27 +966,56 @@ public class CMClientApp {
 				}
 				
 				System.out.print("Server name(\"SERVER\" for the default server): ");
-				strServerName = scan.next();
+				strServerName = m_scan.next();
 			}
 			else if(nChType == CMInfo.CM_DATAGRAM_CHANNEL)
 			{
-				System.out.print("Channel udp port: ");
-				nChPort = scan.nextInt();
+				System.out.print("is it a blocking channel? (\"y\": yes, \"n\": no): ");
+				strBlock = m_scan.next();
+				if(strBlock.equals("y")) isBlock = true;
+				else if(strBlock.equals("n")) isBlock = false;
+				else
+				{
+					System.err.println("invalid answer! : "+strBlock);
+					return;
+				}
+			
+				if(isBlock)
+				{
+					System.out.print("Channel udp port: ");
+					nChPort = m_scan.nextInt();
+					if(nChPort < 0)
+					{
+						System.err.println("testAddChannel(), invalid blocking datagram channel key ("+nChPort+")!");
+						return;
+					}
+				}
+				else
+				{
+					System.out.print("Channel udp port: ");
+					nChPort = m_scan.nextInt();
+					if(nChPort <= 0)
+					{
+						System.err.println("testAddChannel(), invalid nonblocking datagram channel key ("+nChPort+")!");
+						return;
+					}
+				}
+
 			}
 			else if(nChType == CMInfo.CM_MULTICAST_CHANNEL)
 			{
 				System.out.print("Target session name: ");
-				strSessionName = scan.next();
+				strSessionName = m_scan.next();
 				System.out.print("Target group name: ");
-				strGroupName = scan.next();
+				strGroupName = m_scan.next();
 				System.out.print("Channel multicast address: ");
-				strChAddress = scan.next();
+				strChAddress = m_scan.next();
 				System.out.print("Channel multicast port: ");
-				nChPort = scan.nextInt();
+				nChPort = m_scan.nextInt();
 			}
 		}catch(InputMismatchException e){
 			System.err.println("Invalid input type!");
-			scan.next();
+			m_scan.next();
 			return;
 		}
 					
@@ -839,11 +1076,23 @@ public class CMClientApp {
 				
 			break;
 		case CMInfo.CM_DATAGRAM_CHANNEL:
-			bResult = m_clientStub.addDatagramChannel(nChPort);
-			if(bResult)
-				System.out.println("Successfully added a datagram socket channel: port("+nChPort+")");
+			if(isBlock)
+			{
+				dc = m_clientStub.addBlockDatagramChannel(nChPort);
+				if(dc != null)
+					System.out.println("Successfully added a blocking datagram socket channel: port("+nChPort+")");
+				else
+					System.err.println("Failed to add a blocking datagram socket channel: port("+nChPort+")");								
+			}
 			else
-				System.err.println("Failed to add a datagram socket channel: port("+nChPort+")");
+			{
+				dc = m_clientStub.addNonBlockDatagramChannel(nChPort);
+				if(dc != null)
+					System.out.println("Successfully added a non-blocking datagram socket channel: port("+nChPort+")");
+				else
+					System.err.println("Failed to add a non-blocking datagram socket channel: port("+nChPort+")");				
+			}
+			
 			break;
 		case CMInfo.CM_MULTICAST_CHANNEL:
 			bResult = m_clientStub.addMulticastChannel(strSessionName, strGroupName, strChAddress, nChPort);
@@ -896,11 +1145,11 @@ public class CMClientApp {
 		System.out.println("====== remove additional channel");
 		try{
 			System.out.print("Select channel type (SocketChannel:2, DatagramChannel:3, MulticastChannel:4): ");
-			nChType = scan.nextInt();
+			nChType = m_scan.nextInt();
 			if(nChType == CMInfo.CM_SOCKET_CHANNEL)
 			{
 				System.out.print("is it a blocking channel? (\"y\": yes, \"n\": no): ");
-				strBlock = scan.next();
+				strBlock = m_scan.next();
 				if(strBlock.equals("y")) isBlock = true;
 				else if(strBlock.equals("n")) isBlock = false;
 				else
@@ -912,14 +1161,14 @@ public class CMClientApp {
 				if(isBlock)
 				{
 					System.out.print("Channel key(>=0): ");
-					nChKey = scan.nextInt();
+					nChKey = m_scan.nextInt();
 					if(nChKey < 0)
 					{
 						System.err.println("testRemoveChannel(), invalid socket channel key ("+nChKey+")!");
 						return;
 					}
 					System.out.print("Is the removal synchronous? (\"y\": yes, \"n\": no); ");
-					strSync = scan.next();
+					strSync = m_scan.next();
 					if(strSync.equals("y")) isSyncCall = true;
 					else if(strSync.equals("n")) isSyncCall = false;
 					else
@@ -931,7 +1180,7 @@ public class CMClientApp {
 				else
 				{
 					System.out.print("Channel key(integer greater than 0): ");
-					nChKey = scan.nextInt();
+					nChKey = m_scan.nextInt();
 					if(nChKey <= 0)
 					{
 						System.err.println("testRemoveChannel(), invalid socket channel key ("+nChKey+")!");
@@ -939,27 +1188,37 @@ public class CMClientApp {
 					}
 				}
 				System.out.print("Server name(\"SERVER\" for the default server): ");
-				strServerName = scan.next();
+				strServerName = m_scan.next();
 			}
 			else if(nChType ==CMInfo.CM_DATAGRAM_CHANNEL)
 			{
-			System.out.print("Channel udp port: ");
-			nChPort = scan.nextInt();			
+				System.out.print("is it a blocking channel? (\"y\": yes, \"n\": no): ");
+				strBlock = m_scan.next();
+				if(strBlock.equals("y")) isBlock = true;
+				else if(strBlock.equals("n")) isBlock = false;
+				else
+				{
+					System.err.println("invalid answer! : "+strBlock);
+					return;
+				}
+
+				System.out.print("Channel udp port: ");
+				nChPort = m_scan.nextInt();			
 			}
 			else if(nChType == CMInfo.CM_MULTICAST_CHANNEL)
 			{
 				System.out.print("Target session name: ");
-				strSessionName = scan.next();
+				strSessionName = m_scan.next();
 				System.out.print("Target group name: ");
-				strGroupName = scan.next();
+				strGroupName = m_scan.next();
 				System.out.print("Multicast address: ");
-				strChAddress = scan.next();
+				strChAddress = m_scan.next();
 				System.out.print("Multicast port: ");
-				nChPort = scan.nextInt();
+				nChPort = m_scan.nextInt();
 			}
 		}catch(InputMismatchException e){
 			System.err.println("Invalid input type!");
-			scan.next();
+			m_scan.next();
 			return;
 		}
 
@@ -1003,11 +1262,22 @@ public class CMClientApp {
 			
 			break;
 		case CMInfo.CM_DATAGRAM_CHANNEL:
-			result = m_clientStub.removeAdditionalDatagramChannel(nChPort);
-			if(result)
-				System.out.println("Successfully removed a datagram socket channel: port("+nChPort+")");
+			if(isBlock)
+			{
+				result = m_clientStub.removeBlockDatagramChannel(nChPort);
+				if(result)
+					System.out.println("Successfully removed a blocking datagram socket channel: port("+nChPort+")");
+				else
+					System.err.println("Failed to remove a blocking datagram socket channel: port("+nChPort+")");				
+			}
 			else
-				System.err.println("Failed to remove a datagram socket channel: port("+nChPort+")");
+			{
+				result = m_clientStub.removeNonBlockDatagramChannel(nChPort);
+				if(result)
+					System.out.println("Successfully removed a non-blocking datagram socket channel: port("+nChPort+")");
+				else
+					System.err.println("Failed to remove a non-blocking datagram socket channel: port("+nChPort+")");				
+			}
 
 			break;
 		case CMInfo.CM_MULTICAST_CHANNEL:
@@ -1060,22 +1330,39 @@ public class CMClientApp {
 	
 	public void testRequestFile()
 	{
+		boolean bReturn = false;
 		String strFileName = null;
 		String strFileOwner = null;
+		String strFileAppend = null;
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		System.out.println("====== request a file");
 		try {
 			System.out.print("File name: ");
 			strFileName = br.readLine();
-			System.out.print("File owner(server name): ");
+			System.out.print("File owner(enter for \"SERVER\"): ");
 			strFileOwner = br.readLine();
+			if(strFileOwner.isEmpty())
+				strFileOwner = "SERVER";
+			System.out.print("File append mode('y'(append);'n'(overwrite);''(empty for the default configuration): ");
+			strFileAppend = br.readLine();
+			
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
-		//CMFileTransferManager.requestFile(strFileName, strFileOwner, m_clientStub.getCMInfo());
-		m_clientStub.requestFile(strFileName, strFileOwner);
+		if(strFileAppend.isEmpty())
+			bReturn = m_clientStub.requestFile(strFileName, strFileOwner);
+		else if(strFileAppend.equals("y"))
+			bReturn = m_clientStub.requestFile(strFileName,  strFileOwner, CMInfo.FILE_APPEND);
+		else if(strFileAppend.equals("n"))
+			bReturn = m_clientStub.requestFile(strFileName,  strFileOwner, CMInfo.FILE_OVERWRITE);
+		else
+			System.err.println("wrong input for the file append mode!");
+		
+		if(!bReturn)
+			System.err.println("Request file error! file("+strFileName+"), owner("+strFileOwner+").");
+		
 		System.out.println("======");
 	}
 	
@@ -1083,22 +1370,90 @@ public class CMClientApp {
 	{
 		String strFilePath = null;
 		String strReceiver = null;
+		boolean bReturn = false;
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		System.out.println("====== push a file");
 		
 		try {
 			System.out.print("File path name: ");
 			strFilePath = br.readLine();
-			System.out.print("File receiver (server name): ");
+			System.out.print("File receiver (enter for \"SERVER\"): ");
 			strReceiver = br.readLine();
+			if(strReceiver.isEmpty())
+				strReceiver = "SERVER";
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
-		//CMFileTransferManager.pushFile(strFilePath, strReceiver, m_clientStub.getCMInfo());
-		m_clientStub.pushFile(strFilePath, strReceiver);
+		bReturn = m_clientStub.pushFile(strFilePath, strReceiver);
+		
+		if(!bReturn)
+			System.err.println("Push file error! file("+strFilePath+"), receiver("+strReceiver+")");
+		
 		System.out.println("======");
+	}
+	
+	public void cancelRecvFile()
+	{
+		String strSender = null;
+		boolean bReturn = false;
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		System.out.println("====== cancel receiving a file");
+		
+		System.out.print("Input sender name (enter for all senders): ");
+		try {
+			strSender = br.readLine();
+			if(strSender.isEmpty())
+				strSender = null;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		bReturn = m_clientStub.cancelRequestFile(strSender);
+		
+		if(bReturn)
+		{
+			if(strSender == null)
+				strSender = "all senders";
+			System.out.println("Successfully requested to cancel receiving a file to ["+strSender+"].");
+		}
+		else
+			System.err.println("Request failed to cancel receiving a file to ["+strSender+"]!");
+		
+		return;
+	}
+	
+	public void cancelSendFile()
+	{
+		String strReceiver = null;
+		boolean bReturn = false;
+		System.out.println("====== cancel sending a file");
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		System.out.print("Input receiver name (enter for all receivers): ");
+		
+		try {
+			strReceiver = br.readLine();
+			if(strReceiver.isEmpty())
+				strReceiver = null;
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		bReturn = m_clientStub.cancelPushFile(strReceiver);
+		
+		if(bReturn)
+		{
+			if(strReceiver == null)
+				strReceiver = "all receivers";
+			System.out.println("Successfully requested to cancel sending a file to ["+strReceiver+"].");
+		}
+		else
+			System.err.println("Request failed to cancel sending a file to ["+strReceiver+"]!");
+		
+		return;
 	}
 	
 	public void testForwarding()
@@ -1365,6 +1720,8 @@ public class CMClientApp {
 	public void testDownloadNextSNSContent()
 	{
 		System.out.println("===== Request the next SNS content list");
+		// start time of downloading contents
+		m_eventHandler.setStartTime(System.currentTimeMillis());
 		m_clientStub.requestNextSNSContent();
 		
 		return;
@@ -1375,6 +1732,8 @@ public class CMClientApp {
 	public void testDownloadPreviousSNSContent()
 	{
 		System.out.println("===== Request the previous SNS content list");
+		// start time of downloading contents
+		m_eventHandler.setStartTime(System.currentTimeMillis());
 		m_clientStub.requestPreviousSNSContent();
 		
 		return;
@@ -2058,7 +2417,7 @@ public class CMClientApp {
 		// make a file event (REQUEST_DIST_FILE_PROC)
 		fe = new CMFileEvent();
 		fe.setID(CMFileEvent.REQUEST_DIST_FILE_PROC);
-		fe.setUserName(interInfo.getMyself().getName());
+		fe.setReceiverName(interInfo.getMyself().getName());
 
 		// for pieces except the last piece
 		for( i = 0; i < m_eventHandler.getCurrentServerNum()-1; i++)
@@ -2163,13 +2522,16 @@ public class CMClientApp {
 		return;
 	}
 	
-	public void testGetBlockSocketChannel()
+	public void testBlockingChannel()
 	{
 		int nChKey = -1;
+		int nRecvPort = -1;
 		String strServerName = null;
 		SocketChannel sc = null;
+		DatagramChannel dc = null;
 		CMConfigurationInfo confInfo = m_clientStub.getCMInfo().getConfigurationInfo();
 		CMInteractionInfo interInfo = m_clientStub.getCMInfo().getInteractionInfo();
+		boolean isSocketChannel = false;
 		
 		if(confInfo.getSystemType().equals("CLIENT"))
 		{
@@ -2181,41 +2543,108 @@ public class CMClientApp {
 			}
 		}
 		
-		System.out.println("============= get blocking socket channel");
+		System.out.println("============= test blocking channel");
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
-		System.out.print("Channel key (>=0): ");
-		nChKey = scan.nextInt();
-		
-		if(nChKey < 0)
-		{
-			System.err.println("Invalid channel key: "+nChKey);
+		try {
+			System.out.print("Do you want to use a socket channel? (\"y\" or enter: yes, \"n\": no): ");
+			String strIsSocketChannel = br.readLine();
+			if(strIsSocketChannel.isEmpty() || strIsSocketChannel.equals("y") || strIsSocketChannel.equals("yes"))
+			{
+				isSocketChannel = true;
+			}
+			System.out.print("Channel key (>=0 or sender port for datagram channel): ");
+			String strChKey = br.readLine();
+			nChKey = Integer.parseInt(strChKey);
+			System.out.print("Server name(empty for the default server): ");
+			strServerName = br.readLine();
+			if(strServerName.isEmpty()) strServerName = "SERVER";
+			if(!isSocketChannel)
+			{
+				System.out.print("receiver port (only for datagram channel): ");
+				String strRecvPort = br.readLine();
+				nRecvPort = Integer.parseInt(strRecvPort);				
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return;
+		} catch (NumberFormatException ne) {
+			ne.printStackTrace();
 			return;
 		}
 		
-		System.out.print("Server name (\"SERVER\" for the default server): ");
-		strServerName = scan.next();
-
-		/*
-		 * scan.next() method never returns before any user given input.
-		 * 
-		if(strServerName == null || strServerName.equals(""))
-			strServerName = "SERVER"; // default server name
-		*/
-
-		sc = m_clientStub.getBlockSocketChannel(nChKey, strServerName);
-		
-		if(sc == null)
+		if(isSocketChannel)
 		{
-			System.err.println("Blocking socket channel not found: key("+nChKey+"), server("+strServerName+")");
+			sc = m_clientStub.getBlockSocketChannel(nChKey, strServerName);
+			if(sc == null)
+			{
+				System.err.println("Blocking socket channel not found: key("+nChKey+"), server("+strServerName+")");
+				return;
+			}
+			System.out.println("Blocking socket channel found: key("+nChKey+"), server("+strServerName+")");
 		}
 		else
 		{
-			System.out.println("Blocking socket channel found: key("+nChKey+"), server("+strServerName+")");
+			dc = m_clientStub.getBlockDatagramChannel(nChKey);
+			if(dc == null)
+			{
+				System.err.println("Blocking datagram channel not found: key("+nChKey+")");
+				return;
+			}
+			System.out.println("Blocking datagram channel found: key("+nChKey+")");
 		}
+		
+		CMUserEvent ue = new CMUserEvent();
+		ue.setStringID("reqRecv");
+		ue.setEventField(CMInfo.CM_STR, "user", m_clientStub.getMyself().getName());
+		if(isSocketChannel)
+			ue.setEventField(CMInfo.CM_INT, "chType", Integer.toString(CMInfo.CM_SOCKET_CHANNEL));
+		else
+			ue.setEventField(CMInfo.CM_INT, "chType", Integer.toString(CMInfo.CM_DATAGRAM_CHANNEL));
+		
+		ue.setEventField(CMInfo.CM_INT, "chKey", Integer.toString(nChKey));
+		ue.setEventField(CMInfo.CM_INT, "recvPort", Integer.toString(nRecvPort));
+		m_clientStub.send(ue, strServerName);
 		
 		return;		
 	}
 	
+	public void testMeasureInputThroughput()
+	{
+		String strTarget = null;
+		float fSpeed = -1; // MBps
+		System.out.println("========== test input network throughput");
+		System.out.print("target node (\"SERVER\" for the default server): ");
+		strTarget = m_scan.next();
+		fSpeed = m_clientStub.measureInputThroughput(strTarget);
+		if(fSpeed == -1)
+			System.err.println("Test failed!");
+		else
+			System.out.format("Input network throughput from [%s] : %.2f%n", strTarget, fSpeed);
+	}
+	
+	public void testMeasureOutputThroughput()
+	{
+		String strTarget = null;
+		float fSpeed = -1; // MBps
+		System.out.println("========== test output network throughput");
+		System.out.print("target node (\"SERVER\" for the default server): ");
+		strTarget = m_scan.next();
+		fSpeed = m_clientStub.measureOutputThroughput(strTarget);
+		if(fSpeed == -1)
+			System.err.println("Test failed!");
+		else
+			System.out.format("Output network throughput to [%s] : %.2f%n", strTarget, fSpeed);
+	}
+
+	public void testPrintCurrentChannelInfo()
+	{
+		System.out.println("========== print current channel info");
+		String strChannels = m_clientStub.getCurrentChannelInfo();
+		System.out.println(strChannels);
+	}
+
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		CMClientApp client = new CMClientApp();

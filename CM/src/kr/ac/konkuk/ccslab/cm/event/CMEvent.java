@@ -78,9 +78,17 @@ public class CMEvent extends CMObject {
 	 */
 	public ByteBuffer marshall()
 	{
-		allocate();
-		marshallHeader();
-		marshallBody();
+		boolean bResult = false;
+		
+		bResult = allocate();
+		if(bResult)
+		{
+			marshallHeader();
+			marshallBody();
+		}
+		else
+			m_bytes = null;
+		
 		return m_bytes;
 	}
 	
@@ -253,11 +261,17 @@ public class CMEvent extends CMObject {
 	
 	/////////////////////////////////////////////////
 	
-	protected void allocate()
+	protected boolean allocate()
 	{
 		m_nByteNum = getByteNum();
+		if(m_nByteNum > CMInfo.MAX_EVENT_SIZE)
+		{
+			System.err.println("CMEvent.allocate(): the byte number("+m_nByteNum
+					+") is greater than the maximum event size ("+CMInfo.MAX_EVENT_SIZE+")!");
+			return false;
+		}
 		m_bytes = ByteBuffer.allocate(m_nByteNum);
-		
+		return true;
 		// this allocated object should be deallocated after the event is sent by a sending method.
 	}
 	
@@ -299,46 +313,45 @@ public class CMEvent extends CMObject {
 	
 	protected void unmarshallHeader(ByteBuffer msg)
 	{
-		int nStrNum;
+		//int nStrNum;
 		
-		/*
-		typedef struct _cmEvent {
-			int byteNum;
-			int type;
-			unsigned int id;
-			char handlerSession[EVENT_FIELD_LEN];
-			char handlerRegion[EVENT_FIELD_LEN];
-			char distributionSession[EVENT_FIELD_LEN];
-			char distributionRegion[EVENT_FIELD_LEN];
-			unsigned char body[1];
-		} cmEvent;
-		*/
-
 		// add endian test
 		
 		m_nByteNum = msg.getInt();
 		m_nType = msg.getInt();
 		m_nID = msg.getInt();
 		
+		/*
 		nStrNum = msg.getInt();
 		byte[] strBytes = new byte[nStrNum];
 		msg.get(strBytes);
 		m_strHandlerSession = new String(strBytes);
+		*/
+		m_strHandlerSession = getStringFromByteBuffer(msg);
 		
+		/*
 		nStrNum = msg.getInt();
 		strBytes = new byte[nStrNum];
 		msg.get(strBytes);
 		m_strHandlerGroup = new String(strBytes);
+		*/
+		m_strHandlerGroup = getStringFromByteBuffer(msg);
 		
+		/*
 		nStrNum = msg.getInt();
 		strBytes = new byte[nStrNum];
 		msg.get(strBytes);
 		m_strDistributionSession = new String(strBytes);
+		*/
+		m_strDistributionSession = getStringFromByteBuffer(msg);
 		
+		/*
 		nStrNum = msg.getInt();
 		strBytes = new byte[nStrNum];
 		msg.get(strBytes);
 		m_strDistributionGroup = new String(strBytes);
+		*/
+		m_strDistributionGroup = getStringFromByteBuffer(msg);
 		
 		//msg.rewind();
 		
@@ -383,12 +396,15 @@ public class CMEvent extends CMObject {
 	{
 		int nStrNum;
 		byte[] strBytes;
+		String str = null;
 		
 		nStrNum = msg.getInt();
 		strBytes = new byte[nStrNum];
 		msg.get(strBytes);
+		str = new String(strBytes);
 		
-		return new String(strBytes);
+		strBytes =  null;
+		return str;
 	}
 	
 }
