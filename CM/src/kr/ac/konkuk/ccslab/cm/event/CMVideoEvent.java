@@ -6,25 +6,25 @@ import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 public class CMVideoEvent extends CMEvent{
 	
 	// events for the Video transfer with the default channel
-	public static final int REQUEST_VIDEO_TRANSFER = 1;		// c -> s
-	public static final int REPLY_VIDEO_TRANSFER = 2;		// s -> c
-	public static final int START_VIDEO_TRANSFER = 3;		// s -> c
-	public static final int START_VIDEO_TRANSFER_ACK = 4;	// c -> s
-	public static final int CONTINUE_VIDEO_TRANSFER = 5;		// s -> c
-	public static final int CONTINUE_VIDEO_TRANSFER_ACK = 6;	// c -> s
-	public static final int END_VIDEO_TRANSFER = 7;			// s -> c
-	public static final int END_VIDEO_TRANSFER_ACK = 8;		// c -> s
+	public static final int REQUEST_VIDEO_STREAMING = 1;		// c -> s
+	public static final int REPLY_VIDEO_STREAMING = 2;		// s -> c
+	public static final int START_VIDEO_STREAMING = 3;		// s -> c
+	public static final int START_VIDEO_STREAMING_ACK = 4;	// c -> s
+	public static final int CONTINUE_VIDEO_STREAMING = 5;		// s -> c
+	public static final int CONTINUE_VIDEO_STREAMING_ACK = 6;	// c -> s
+	public static final int END_VIDEO_STREAMING = 7;			// s -> c
+	public static final int END_VIDEO_STREAMING_ACK = 8;		// c -> s
 	public static final int REQUEST_DIST_VIDEO_PROC = 9;		// c -> s (for distributed Video processing)
 	
 	// events for the Video transfer with the separate channel and thread
-	public static final int REQUEST_VIDEO_TRANSFER_CHAN = 10;		// c -> s
-	public static final int REPLY_VIDEO_TRANSFER_CHAN = 11;		// s -> c
-	public static final int START_VIDEO_TRANSFER_CHAN = 12;		// s -> c
-	public static final int START_VIDEO_TRANSFER_CHAN_ACK = 13;	// c -> s
-	public static final int CONTINUE_VIDEO_TRANSFER_CHAN = 14;		// s -> c
-	public static final int CONTINUE_VIDEO_TRANSFER_CHAN_ACK = 15;	// c -> s
-	public static final int END_VIDEO_TRANSFER_CHAN = 16;			// s -> c
-	public static final int END_VIDEO_TRANSFER_CHAN_ACK = 17;		// c -> s
+	public static final int REQUEST_VIDEO_STREAMING_CHAN = 10;		// c -> s
+	public static final int REPLY_VIDEO_STREAMING_CHAN = 11;		// s -> c
+	public static final int START_VIDEO_STREAMING_CHAN = 12;		// s -> c
+	public static final int START_VIDEO_STREAMING_CHAN_ACK = 13;	// c -> s
+	public static final int CONTINUE_VIDEO_STREAMING_CHAN = 14;		// s -> c
+	public static final int CONTINUE_VIDEO_STREAMING_CHAN_ACK = 15;	// c -> s
+	public static final int END_VIDEO_STREAMING_CHAN = 16;			// s -> c
+	public static final int END_VIDEO_STREAMING_CHAN_ACK = 17;		// c -> s
 
 	
 	private String m_strUserName;	// target name
@@ -177,41 +177,41 @@ public class CMVideoEvent extends CMEvent{
 		
 		switch(m_nID)
 		{
-		case REQUEST_VIDEO_TRANSFER:
-		case REQUEST_VIDEO_TRANSFER_CHAN:
+		case REQUEST_VIDEO_STREAMING:
+		case REQUEST_VIDEO_STREAMING_CHAN:
 			nByteNum += 3*Integer.BYTES + m_strUserName.getBytes().length + m_strVideoName.getBytes().length;
 			break;
-		case REPLY_VIDEO_TRANSFER:
-		case REPLY_VIDEO_TRANSFER_CHAN:
+		case REPLY_VIDEO_STREAMING:
+		case REPLY_VIDEO_STREAMING_CHAN:
 			nByteNum += 3*Integer.BYTES + m_strVideoName.getBytes().length;
 			break;
-		case START_VIDEO_TRANSFER:
-		case START_VIDEO_TRANSFER_CHAN:
+		case START_VIDEO_STREAMING:
+		case START_VIDEO_STREAMING_CHAN:
 			nByteNum += 3*Integer.BYTES + m_strSenderName.getBytes().length + m_strVideoName.getBytes().length
 					+ Long.BYTES;
 			break;
-		case START_VIDEO_TRANSFER_ACK:
+		case START_VIDEO_STREAMING_ACK:
 			nByteNum += 3*Integer.BYTES + m_strUserName.getBytes().length + m_strVideoName.getBytes().length;
 			break;
-		case START_VIDEO_TRANSFER_CHAN_ACK:
+		case START_VIDEO_STREAMING_CHAN_ACK:
 			nByteNum += 3*Integer.BYTES + m_strUserName.getBytes().length + m_strVideoName.getBytes().length 
 					+ Long.BYTES;
 			break;
-		case CONTINUE_VIDEO_TRANSFER:
+		case CONTINUE_VIDEO_STREAMING:
 			nByteNum += 4*Integer.BYTES + m_strSenderName.getBytes().length + m_strVideoName.getBytes().length 
 					+ CMInfo.VIDEO_BLOCK_LEN;
 			break;
-		case CONTINUE_VIDEO_TRANSFER_ACK:
+		case CONTINUE_VIDEO_STREAMING_ACK:
 			nByteNum += 3*Integer.BYTES + m_strUserName.getBytes().length + m_strVideoName.getBytes().length 
 					+ Long.BYTES;
 			break;
-		case END_VIDEO_TRANSFER:
-		case END_VIDEO_TRANSFER_CHAN:
+		case END_VIDEO_STREAMING:
+		case END_VIDEO_STREAMING_CHAN:
 			nByteNum += 3*Integer.BYTES + m_strSenderName.getBytes().length + m_strVideoName.getBytes().length 
 					+ Long.BYTES;
 			break;
-		case END_VIDEO_TRANSFER_ACK:
-		case END_VIDEO_TRANSFER_CHAN_ACK:
+		case END_VIDEO_STREAMING_ACK:
+		case END_VIDEO_STREAMING_CHAN_ACK:
 			nByteNum += 4*Integer.BYTES + m_strUserName.getBytes().length + m_strVideoName.getBytes().length;
 			break;
 		case REQUEST_DIST_VIDEO_PROC:
@@ -229,8 +229,8 @@ public class CMVideoEvent extends CMEvent{
 	{
 		switch(m_nID)
 		{
-		case REQUEST_VIDEO_TRANSFER:
-		case REQUEST_VIDEO_TRANSFER_CHAN:
+		case REQUEST_VIDEO_STREAMING:
+		case REQUEST_VIDEO_STREAMING_CHAN:
 			m_bytes.putInt(m_strUserName.getBytes().length);
 			m_bytes.put(m_strUserName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -238,16 +238,16 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case REPLY_VIDEO_TRANSFER:
-		case REPLY_VIDEO_TRANSFER_CHAN:
+		case REPLY_VIDEO_STREAMING:
+		case REPLY_VIDEO_STREAMING_CHAN:
 			m_bytes.putInt(m_strVideoName.getBytes().length);
 			m_bytes.put(m_strVideoName.getBytes());
 			m_bytes.putInt(m_nReturnCode);
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case START_VIDEO_TRANSFER:
-		case START_VIDEO_TRANSFER_CHAN:
+		case START_VIDEO_STREAMING:
+		case START_VIDEO_STREAMING_CHAN:
 			m_bytes.putInt(m_strSenderName.getBytes().length);
 			m_bytes.put(m_strSenderName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -256,7 +256,7 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case START_VIDEO_TRANSFER_ACK:
+		case START_VIDEO_STREAMING_ACK:
 			m_bytes.putInt(m_strUserName.getBytes().length);
 			m_bytes.put(m_strUserName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -264,7 +264,7 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case START_VIDEO_TRANSFER_CHAN_ACK:
+		case START_VIDEO_STREAMING_CHAN_ACK:
 			m_bytes.putInt(m_strUserName.getBytes().length);
 			m_bytes.put(m_strUserName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -273,7 +273,7 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putLong(m_lReceivedVideoSize);
 			m_bytes.clear();			
 			break;
-		case CONTINUE_VIDEO_TRANSFER:
+		case CONTINUE_VIDEO_STREAMING:
 			m_bytes.putInt(m_strSenderName.getBytes().length);
 			m_bytes.put(m_strSenderName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -283,7 +283,7 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.put(m_cVideoBlock);
 			m_bytes.clear();
 			break;
-		case CONTINUE_VIDEO_TRANSFER_ACK:
+		case CONTINUE_VIDEO_STREAMING_ACK:
 			m_bytes.putInt(m_strUserName.getBytes().length);
 			m_bytes.put(m_strUserName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -292,8 +292,8 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case END_VIDEO_TRANSFER:
-		case END_VIDEO_TRANSFER_CHAN:
+		case END_VIDEO_STREAMING:
+		case END_VIDEO_STREAMING_CHAN:
 			m_bytes.putInt(m_strSenderName.getBytes().length);
 			m_bytes.put(m_strSenderName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -302,8 +302,8 @@ public class CMVideoEvent extends CMEvent{
 			m_bytes.putInt(m_nContentID);
 			m_bytes.clear();
 			break;
-		case END_VIDEO_TRANSFER_ACK:
-		case END_VIDEO_TRANSFER_CHAN_ACK:
+		case END_VIDEO_STREAMING_ACK:
+		case END_VIDEO_STREAMING_CHAN_ACK:
 			m_bytes.putInt(m_strUserName.getBytes().length);
 			m_bytes.put(m_strUserName.getBytes());
 			m_bytes.putInt(m_strVideoName.getBytes().length);
@@ -329,42 +329,42 @@ public class CMVideoEvent extends CMEvent{
 	{
 		switch(m_nID)
 		{
-		case REQUEST_VIDEO_TRANSFER:
-		case REQUEST_VIDEO_TRANSFER_CHAN:
+		case REQUEST_VIDEO_STREAMING:
+		case REQUEST_VIDEO_STREAMING_CHAN:
 			m_strUserName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case REPLY_VIDEO_TRANSFER:
-		case REPLY_VIDEO_TRANSFER_CHAN:
+		case REPLY_VIDEO_STREAMING:
+		case REPLY_VIDEO_STREAMING_CHAN:
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nReturnCode = msg.getInt();
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case START_VIDEO_TRANSFER:
-		case START_VIDEO_TRANSFER_CHAN:
+		case START_VIDEO_STREAMING:
+		case START_VIDEO_STREAMING_CHAN:
 			m_strSenderName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_lVideoSize = msg.getLong();
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case START_VIDEO_TRANSFER_ACK:
+		case START_VIDEO_STREAMING_ACK:
 			m_strUserName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case START_VIDEO_TRANSFER_CHAN_ACK:
+		case START_VIDEO_STREAMING_CHAN_ACK:
 			m_strUserName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nContentID = msg.getInt();
 			m_lReceivedVideoSize = msg.getLong();
 			msg.clear();
 			break;
-		case CONTINUE_VIDEO_TRANSFER:
+		case CONTINUE_VIDEO_STREAMING:
 			m_strSenderName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nContentID = msg.getInt();
@@ -372,23 +372,23 @@ public class CMVideoEvent extends CMEvent{
 			msg.get(m_cVideoBlock);
 			msg.clear();
 			break;
-		case CONTINUE_VIDEO_TRANSFER_ACK:
+		case CONTINUE_VIDEO_STREAMING_ACK:
 			m_strUserName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_lReceivedVideoSize = msg.getLong();
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case END_VIDEO_TRANSFER:
-		case END_VIDEO_TRANSFER_CHAN:
+		case END_VIDEO_STREAMING:
+		case END_VIDEO_STREAMING_CHAN:
 			m_strSenderName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_lVideoSize = msg.getLong();
 			m_nContentID = msg.getInt();
 			msg.clear();
 			break;
-		case END_VIDEO_TRANSFER_ACK:
-		case END_VIDEO_TRANSFER_CHAN_ACK:
+		case END_VIDEO_STREAMING_ACK:
+		case END_VIDEO_STREAMING_CHAN_ACK:
 			m_strUserName = getStringFromByteBuffer(msg);
 			m_strVideoName = getStringFromByteBuffer(msg);
 			m_nReturnCode = msg.getInt();

@@ -22,6 +22,7 @@ import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
 import kr.ac.konkuk.ccslab.cm.manager.CMFileTransferManager;
+import kr.ac.konkuk.ccslab.cm.manager.CMStreamingManager;
 import kr.ac.konkuk.ccslab.cm.stub.CMClientStub;
 import kr.ac.konkuk.ccslab.cm.util.CMUtil;
 
@@ -263,6 +264,9 @@ public class CMClientApp {
 			case 107: // distribute a file and merge
 				testDistFileProc();
 				break;
+			case 110: // Streaming a video
+				testStreaming();
+				break;
 			default:
 				System.err.println("Unknown command.");
 				break;
@@ -322,6 +326,9 @@ public class CMClientApp {
 		System.out.println("101: test forwarding scheme, 102: test delay of forwarding scheme");
 		System.out.println("103: test repeated request of SNS content list");
 		System.out.println("104: pull/push multiple files, 105: split file, 106: merge files, 107: distribute and merge file");
+		System.out.println("----------------------------------");
+		System.out.println("110: test streaming");
+
 	}
 	
 	public void testConnectionDS()
@@ -2648,6 +2655,12 @@ public class CMClientApp {
 		System.out.println(strChannels);
 	}
 
+	public void testStreaming()
+	{
+		CMStreamingApp cmstreamigapp = new CMStreamingApp();
+		//CMStreamingManager.requestVideo("1.Mjpeg", "SERVER", m_clientStub.getCMInfo());
+		return;
+	}
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		CMClientApp client = new CMClientApp();

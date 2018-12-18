@@ -6,28 +6,28 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import kr.ac.konkuk.ccslab.cm.entity.CMRecvFileInfo;
-import kr.ac.konkuk.ccslab.cm.entity.CMSendFileInfo;
+import kr.ac.konkuk.ccslab.cm.entity.CMRecvVideoInfo;
+import kr.ac.konkuk.ccslab.cm.entity.CMSendVideoInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMServer;
 import kr.ac.konkuk.ccslab.cm.entity.CMChannelInfo;
 import kr.ac.konkuk.ccslab.cm.entity.CMMessage;
 import kr.ac.konkuk.ccslab.cm.entity.CMUser;
-import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
 import kr.ac.konkuk.ccslab.cm.event.CMVideoEvent;
+import kr.ac.konkuk.ccslab.cm.info.CMCommInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
-import kr.ac.konkuk.ccslab.cm.info.CMVideoInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInfo;
 import kr.ac.konkuk.ccslab.cm.info.CMInteractionInfo;
-import kr.ac.konkuk.ccslab.cm.thread.CMRecvFileTask;
-import kr.ac.konkuk.ccslab.cm.thread.CMSendFileTask;
+import kr.ac.konkuk.ccslab.cm.info.CMStreamingInfo;
+import kr.ac.konkuk.ccslab.cm.thread.CMRecvVideoTask;
+import kr.ac.konkuk.ccslab.cm.thread.CMSendVideoTask;
 
 public class CMStreamingManager {
 
 	public static void init(CMInfo cmInfo)
 	{
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
-		String strPath = confInfo.getFilePath();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		String strPath = confInfo.getVideoPath();
 		
 		// if the default directory does not exist, create it.
 		File defaultPath = new File(strPath);
@@ -46,9 +46,9 @@ public class CMStreamingManager {
 			}
 		}
 		
-		fInfo.setFilePath(strPath);
+		fInfo.setVideoPath(strPath);
 		if(CMInfo._CM_DEBUG)
-			System.out.println("A default path for the file transfer: "+strPath);
+			System.out.println("A default path for the Video Streaming: "+strPath);
 		
 		// create an executor service object
 		ExecutorService es = fInfo.getExecutorService();
@@ -57,7 +57,7 @@ public class CMStreamingManager {
 		fInfo.setExecutorService(es);
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMVideoTransferManager.init(), executor service created; # available processors("
+			System.out.println("CMStreamingManager.init(), executor service created; # available processors("
 					+nAvailableProcessors+").");
 		}
 				
@@ -66,15 +66,15 @@ public class CMStreamingManager {
 	
 	public static void terminate(CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		ExecutorService es = fInfo.getExecutorService();
 		es.shutdown();	// need to check
 	}
 	
-	public static void setFilePath(String strFilePath, CMInfo cmInfo)
+	public static void setVideoPath(String strVideoPath, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
-		fInfo.setFilePath(strFilePath);
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		fInfo.setVideoPath(strVideoPath);
 		return;
 	}
 	
@@ -96,10 +96,7 @@ public class CMStreamingManager {
 			return;
 		}
 		
-		if(confInfo.isVideoTransferScheme())
-			requestVideoWithSepChannel(strVideoName, strVideoOwner, nContentID, cmInfo);
-		else
-			requestVideoWithDefChannel(strVideoName, strVideoOwner, nContentID, cmInfo);
+		requestVideoWithSepChannel(strVideoName, strVideoOwner, nContentID, cmInfo);
 		return;
 	}
 	
@@ -108,7 +105,7 @@ public class CMStreamingManager {
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
 		CMVideoEvent fe = new CMVideoEvent();
-		fe.setID(CMVideoEvent.REQUEST_VIDEO_TRANSFER);
+		fe.setID(CMVideoEvent.REQUEST_VIDEO_STREAMING);
 		fe.setUserName(myself.getName());	// requester name
 		fe.setVideoName(strVideoName);
 		fe.setContentID(nContentID);
@@ -123,7 +120,7 @@ public class CMStreamingManager {
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
 		CMVideoEvent fe = new CMVideoEvent();
-		fe.setID(CMVideoEvent.REQUEST_VIDEO_TRANSFER_CHAN);
+		fe.setID(CMVideoEvent.REQUEST_VIDEO_STREAMING_CHAN);
 		fe.setUserName(myself.getName());	// requester name
 		fe.setVideoName(strVideoName);
 		fe.setContentID(nContentID);
@@ -134,13 +131,13 @@ public class CMStreamingManager {
 	}
 	
 	
-	public static void pushVideo(String strFilePath, String strReceiver, CMInfo cmInfo)
+	public static void pushVideo(String strVideoPath, String strReceiver, CMInfo cmInfo)
 	{
-		pushVideo(strFilePath, strReceiver, -1, cmInfo);
+		pushVideo(strVideoPath, strReceiver, -1, cmInfo);
 		return;
 	}
 	
-	public static void pushVideo(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	public static void pushVideo(String strVideoPath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
@@ -151,57 +148,54 @@ public class CMStreamingManager {
 			return;
 		}
 		
-		if(confInfo.isVideoTransferScheme())
-			pushVideoWithSepChannel(strFilePath, strReceiver, nContentID, cmInfo);
-		else
-			pushVideoWithDefChannel(strFilePath, strReceiver, nContentID, cmInfo);
+		pushVideoWithSepChannel(strVideoPath, strReceiver, nContentID, cmInfo);
 		return;
 	}
 
-	// strFilePath: absolute or relative path to a target file
-	public static void pushVideoWithDefChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	// strVideoPath: absolute or relative path to a target Video
+	public static void pushVideoWithDefChannel(String strVideoPath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
-		// get file information (size)
-		File file = new File(strFilePath);
-		if(!file.exists())
+		// get Video information (size)
+		File Video = new File(strVideoPath);
+		if(!Video.exists())
 		{
-			System.err.println("CMVideoTransferManager.pushVideo(), file("+strFilePath+") does not exists.");
+			System.err.println("CMVideoTransferManager.pushVideo(), Video("+strVideoPath+") does not exists.");
 			return;
 		}
-		long lFileSize = file.length();
+		long lVideoSize = Video.length();
 		
-		// add send file information
-		// receiver name, file path, size
-		fInfo.addSendVideoInfo(strReceiver, strFilePath, lFileSize, nContentID);
+		// add send Video information
+		// receiver name, Video path, size
+		fInfo.addSendVideoInfo(strReceiver, strVideoPath, lVideoSize, nContentID);
 
 		// get my name
 		String strMyName = interInfo.getMyself().getName();
 
-		// get file name
-		String strFileName = getFileNameFromPath(strFilePath);
-		System.out.println("file name: "+strFileName);
+		// get Video name
+		String strVideoName = getVideoNameFromPath(strVideoPath);
+		System.out.println("Video name: "+strVideoName);
 		
-		// start file transfer process
+		// start Video transfer process
 		CMVideoEvent fe = new CMVideoEvent();
-		fe.setID(CMVideoEvent.START_VIDEO_TRANSFER);
+		fe.setID(CMVideoEvent.START_VIDEO_STREAMING);
 		fe.setSenderName(strMyName);
-		fe.setVideoName(strFileName);
-		fe.setVideoSize(lFileSize);
+		fe.setVideoName(strVideoName);
+		fe.setVideoSize(lVideoSize);
 		fe.setContentID(nContentID);
 		CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
 
-		file = null;
+		Video = null;
 		fe = null;
 		return;
 	}
 	
-	// strFilePath: absolute or relative path to a target file
-	public static void pushVideoWithSepChannel(String strFilePath, String strReceiver, int nContentID, CMInfo cmInfo)
+	// strVideoPath: absolute or relative path to a target Video
+	public static void pushVideoWithSepChannel(String strVideoPath, String strReceiver, int nContentID, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo sInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 
@@ -253,31 +247,31 @@ public class CMStreamingManager {
 		}
 
 
-		// get file information (size)
-		File file = new File(strFilePath);
-		if(!file.exists())
+		// get Video information (size)
+		File Video = new File(strVideoPath);
+		if(!Video.exists())
 		{
-			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(), file("+strFilePath+") does not exists.");
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(), Video("+strVideoPath+") does not exists.");
 			return;
 		}
-		long lFileSize = file.length();
+		long lVideoSize = Video.length();
 		
-		// add send file information
-		// sender name, receiver name, file path, size, content ID
-		CMSendVideoInfo sfInfo = new CMSendVideoInfo();
-		sfInfo.setSenderName(interInfo.getMyself().getName());
-		sfInfo.setReceiverName(strReceiver);
-		sfInfo.setVideoPath(strFilePath);
-		sfInfo.setVideoSize(lFileSize);
-		sfInfo.setContentID(nContentID);
-		sfInfo.setSendChannel(sc);
-		sfInfo.setDefaultChannel(dsc);
-		//boolean bResult = fInfo.addSendVideoInfo(strReceiver, strFilePath, lFileSize, nContentID);
-		boolean bResult = fInfo.addSendVideoInfo(sfInfo);
+		// add send Video information
+		// sender name, receiver name, Video path, size, content ID
+		CMSendVideoInfo svInfo = new CMSendVideoInfo();
+		svInfo.setSenderName(interInfo.getMyself().getName());
+		svInfo.setReceiverName(strReceiver);
+		svInfo.setVideoPath(strVideoPath);
+		svInfo.setVideoSize(lVideoSize);
+		svInfo.setContentID(nContentID);
+		svInfo.setSendChannel(sc);
+		svInfo.setDefaultChannel(dsc);
+		//boolean bResult = fInfo.addSendVideoInfo(strReceiver, strVideoPath, lVideoSize, nContentID);
+		boolean bResult = sInfo.addSendVideoInfo(svInfo);
 		if(!bResult)
 		{
-			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); error for adding the sending file info: "
-					+"receiver("+strReceiver+"), file("+strFilePath+"), size("+lFileSize+"), content ID("
+			System.err.println("CMVideoTransferManager.pushVideoWithSepChannel(); error for adding the sending Video info: "
+					+"receiver("+strReceiver+"), Video("+strVideoPath+"), size("+lVideoSize+"), content ID("
 					+nContentID+")!");
 			return;
 		}
@@ -285,55 +279,55 @@ public class CMStreamingManager {
 		// get my name
 		String strMyName = interInfo.getMyself().getName();
 
-		// get file name
-		String strVideoName = getVideoNameFromPath(strFilePath);
+		// get Video name
+		String strVideoName = getVideoNameFromPath(strVideoPath);
 		
-		// start file transfer process
+		// start Video transfer process
 		CMVideoEvent fe = new CMVideoEvent();
-		fe.setID(CMVideoEvent.START_FILE_TRANSFER_CHAN);
+		fe.setID(CMVideoEvent.START_VIDEO_STREAMING_CHAN);
 		fe.setSenderName(strMyName);
-		fe.setVideoName(strFileName);
-		fe.setVideoSize(lFileSize);
+		fe.setVideoName(strVideoName);
+		fe.setVideoSize(lVideoSize);
 		fe.setContentID(nContentID);
 		CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
 
-		file = null;
+		Video = null;
 		fe = null;
 		return;
 	}
 
 
-	// srcFile: reference of RandomAccessFile of source file
-	// bos: reference of BufferedOutputStream of split file
-	public static void splitFile(RandomAccessFile srcFile, long lOffset, long lSplitSize, String strSplitFile)
+	// srcVideo: reference of RandomAccessVideo of source Video
+	// bos: reference of BufferedOutputStream of split Video
+	public static void splitVideo(RandomAccessFile srcVideo, long lOffset, long lSplitSize, String strSplitVideo)
 	{
 		long lRemainBytes = lSplitSize;
-		byte[] fileBlock = new byte[CMInfo.FILE_BLOCK_LEN];
+		byte[] VideoBlock = new byte[CMInfo.VIDEO_BLOCK_LEN];
 		int readBytes;
 		BufferedOutputStream bos = null;
 		try {
-			bos = new BufferedOutputStream(new FileOutputStream(strSplitFile));
+			bos = new BufferedOutputStream(new FileOutputStream(strSplitVideo));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		
 		try {
-			// set file position
-			srcFile.seek(lOffset);
+			// set Video position
+			srcVideo.seek(lOffset);
 
 			// read and write
 			while( lRemainBytes > 0 )
 			{
-				if(lRemainBytes >= CMInfo.FILE_BLOCK_LEN)
-					readBytes = srcFile.read(fileBlock);
+				if(lRemainBytes >= CMInfo.VIDEO_BLOCK_LEN)
+					readBytes = srcVideo.read(VideoBlock);
 				else
-					readBytes = srcFile.read(fileBlock, 0, (int)lRemainBytes);
+					readBytes = srcVideo.read(VideoBlock, 0, (int)lRemainBytes);
 
-				if( readBytes >= CMInfo.FILE_BLOCK_LEN )
-					bos.write(fileBlock);
+				if( readBytes >= CMInfo.VIDEO_BLOCK_LEN )
+					bos.write(VideoBlock);
 				else
-					bos.write(fileBlock, 0, readBytes);
+					bos.write(VideoBlock, 0, readBytes);
 
 				lRemainBytes -= readBytes;
 			}
@@ -347,54 +341,54 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	public static long mergeFiles(String[] strSplitFiles, int nSplitNum, String strMergeFile)
+	public static long mergeVideos(String[] strSplitVideos, int nSplitNum, String strMergeVideo)
 	{
 		long lMergeSize = -1;
 		long lSrcSize = 0;
 		FileInputStream srcfis = null;
 		BufferedOutputStream bos = null;
-		byte[] fileBlock = new byte[CMInfo.FILE_BLOCK_LEN];
+		byte[] VideoBlock = new byte[CMInfo.VIDEO_BLOCK_LEN];
 		int readBytes = 0;
 
-		if(nSplitNum != strSplitFiles.length)
+		if(nSplitNum != strSplitVideos.length)
 		{
-			System.err.println("CMFileTransferManager.mergeFiles(), the number of members in the "
+			System.err.println("CMVideoTransferManager.mergeVideos(), the number of members in the "
 					+"first parameter is different from the given second parameter!");
 			return -1;
 		}
 		
-		// open a target file
+		// open a target Video
 		try {
 			
-			bos = new BufferedOutputStream(new FileOutputStream(strMergeFile));
+			bos = new BufferedOutputStream(new FileOutputStream(strMergeVideo));
 			
 			for(int i = 0; i < nSplitNum; i++)
 			{
-				// open a source file
-				File srcFile = new File(strSplitFiles[i]);
-				srcfis = new FileInputStream(srcFile);
+				// open a source Video
+				File srcVideo = new File(strSplitVideos[i]);
+				srcfis = new FileInputStream(srcVideo);
 
-				// get source file size
-				lSrcSize = srcFile.length();
+				// get source Video size
+				lSrcSize = srcVideo.length();
 
-				// concatenate a source file to a target file
+				// concatenate a source Video to a target Video
 				while( lSrcSize > 0 )
 				{
-					if( lSrcSize >= CMInfo.FILE_BLOCK_LEN )
+					if( lSrcSize >= CMInfo.VIDEO_BLOCK_LEN )
 					{
-						readBytes = srcfis.read(fileBlock);
-						bos.write(fileBlock, 0, readBytes);
+						readBytes = srcfis.read(VideoBlock);
+						bos.write(VideoBlock, 0, readBytes);
 					}
 					else
 					{
-						readBytes = srcfis.read(fileBlock, 0, (int)lSrcSize);
-						bos.write(fileBlock, 0, readBytes);
+						readBytes = srcfis.read(VideoBlock, 0, (int)lSrcSize);
+						bos.write(VideoBlock, 0, readBytes);
 					}
 
 					lSrcSize -= readBytes;
 				}
 
-				// close a source file
+				// close a source Video
 				srcfis.close();
 			}
 			
@@ -415,13 +409,13 @@ public class CMStreamingManager {
 			}
 		}
 		
-		File targetFile = new File(strMergeFile);
-		lMergeSize = targetFile.length();
+		File targetVideo = new File(strMergeVideo);
+		lMergeSize = targetVideo.length();
 		
 		return lMergeSize;
 	}
 	
-	public static String getFileNameFromPath(String strPath)
+	public static String getVideoNameFromPath(String strPath)
 	{
 		String strName = null;
 		int index;
@@ -451,58 +445,58 @@ public class CMStreamingManager {
 	}
 	
 	//////////////////////////////////////////////////////////////////
-	// process file event
+	// process Video event
 	
 	public static void processEvent(CMMessage msg, CMInfo cmInfo)
 	{
-		CMFileEvent fe = new CMFileEvent(msg.m_buf);
+		CMVideoEvent fe = new CMVideoEvent(msg.m_buf);
 		
 		switch(fe.getID())
 		{
-		case CMFileEvent.REQUEST_FILE_TRANSFER:
-			processREQUEST_FILE_TRANSFER(fe, cmInfo);
+		case CMVideoEvent.REQUEST_VIDEO_STREAMING:
+			processREQUEST_VIDEO_STREAMING(fe, cmInfo);
 			break;
-		case CMFileEvent.REPLY_FILE_TRANSFER:
-			processREPLY_FILE_TRANSFER(fe, cmInfo);
+		case CMVideoEvent.REPLY_VIDEO_STREAMING:
+			processREPLY_VIDEO_STREAMING(fe, cmInfo);
 			break;
-		case CMFileEvent.START_FILE_TRANSFER:
-			processSTART_FILE_TRANSFER(fe, cmInfo);
+		case CMVideoEvent.START_VIDEO_STREAMING:
+			processSTART_VIDEO_STREAMING(fe, cmInfo);
 			break;
-		case CMFileEvent.START_FILE_TRANSFER_ACK:
-			processSTART_FILE_TRANSFER_ACK(fe, cmInfo);
+		case CMVideoEvent.START_VIDEO_STREAMING_ACK:
+			processSTART_VIDEO_STREAMING_ACK(fe, cmInfo);
 			break;
-		case CMFileEvent.CONTINUE_FILE_TRANSFER:
-			processCONTINUE_FILE_TRANSFER(fe, cmInfo);
+		case CMVideoEvent.CONTINUE_VIDEO_STREAMING:
+			processCONTINUE_VIDEO_STREAMING(fe, cmInfo);
 			break;
-		case CMFileEvent.END_FILE_TRANSFER:
-			processEND_FILE_TRANSFER(fe, cmInfo);
+		case CMVideoEvent.END_VIDEO_STREAMING:
+			processEND_VIDEO_STREAMING(fe, cmInfo);
 			break;
-		case CMFileEvent.END_FILE_TRANSFER_ACK:
-			processEND_FILE_TRANSFER_ACK(fe, cmInfo);
+		case CMVideoEvent.END_VIDEO_STREAMING_ACK:
+			processEND_VIDEO_STREAMING_ACK(fe, cmInfo);
 			break;
-		case CMFileEvent.REQUEST_DIST_FILE_PROC:
-			processREQUEST_DIST_FILE_PROC(fe, cmInfo);
+		case CMVideoEvent.REQUEST_DIST_VIDEO_PROC:
+			processREQUEST_DIST_Video_PROC(fe, cmInfo);
 			break;
-		case CMFileEvent.REQUEST_FILE_TRANSFER_CHAN:
-			processREQUEST_FILE_TRANSFER_CHAN(fe, cmInfo);
+		case CMVideoEvent.REQUEST_VIDEO_STREAMING_CHAN:
+			processREQUEST_VIDEO_STREAMING_CHAN(fe, cmInfo);
 			break;
-		case CMFileEvent.REPLY_FILE_TRANSFER_CHAN:
-			processREPLY_FILE_TRANSFER_CHAN(fe, cmInfo);
+		case CMVideoEvent.REPLY_VIDEO_STREAMING_CHAN:
+			processREPLY_VIDEO_STREAMING_CHAN(fe, cmInfo);
 			break;
-		case CMFileEvent.START_FILE_TRANSFER_CHAN:
-			processSTART_FILE_TRANSFER_CHAN(fe, cmInfo);
+		case CMVideoEvent.START_VIDEO_STREAMING_CHAN:
+			processSTART_VIDEO_STREAMING_CHAN(fe, cmInfo);
 			break;
-		case CMFileEvent.START_FILE_TRANSFER_CHAN_ACK:
-			processSTART_FILE_TRANSFER_CHAN_ACK(fe, cmInfo);
+		case CMVideoEvent.START_VIDEO_STREAMING_CHAN_ACK:
+			processSTART_VIDEO_STREAMING_CHAN_ACK(fe, cmInfo);
 			break;
-		case CMFileEvent.END_FILE_TRANSFER_CHAN:
-			processEND_FILE_TRANSFER_CHAN(fe, cmInfo);
+		case CMVideoEvent.END_VIDEO_STREAMING_CHAN:
+			processEND_VIDEO_STREAMING_CHAN(fe, cmInfo);
 			break;
-		case CMFileEvent.END_FILE_TRANSFER_CHAN_ACK:
-			processEND_FILE_TRANSFER_CHAN_ACK(fe, cmInfo);
+		case CMVideoEvent.END_VIDEO_STREAMING_CHAN_ACK:
+			processEND_VIDEO_STREAMING_CHAN_ACK(fe, cmInfo);
 			break;
 		default:
-			System.err.println("CMFileTransferManager.processEvent(), unknown event id("+fe.getID()+").");
+			System.err.println("CMVideoTransferManager.processEvent(), unknown event id("+fe.getID()+").");
 			fe = null;
 			return;
 		}
@@ -511,90 +505,90 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	private static void processREQUEST_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
+	private static void processREQUEST_VIDEO_STREAMING(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMUser myself = cmInfo.getInteractionInfo().getMyself();
 		
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processREQUEST_FILE_TRANSFER(), requester("
-					+fe.getUserName()+"), file("+fe.getFileName()+"), contentID("+fe.getContentID()
+			System.out.println("CMVideoTransferManager.processREQUEST_VIDEO_STREAMING(), requester("
+					+fe.getUserName()+"), Video("+fe.getVideoName()+"), contentID("+fe.getContentID()
 					+").");
 		}
 
-		String strFileName = fe.getFileName();
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.REPLY_FILE_TRANSFER);
-		feAck.setFileName(strFileName);
+		String strVideoName = fe.getVideoName();
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.REPLY_VIDEO_STREAMING);
+		feAck.setVideoName(strVideoName);
 
-		// get the full path of the requested file
-		String strFullPath = fInfo.getFilePath() + File.separator + strFileName; 
-		// check the file existence
-		File file = new File(strFullPath);
-		if(!file.exists())
+		// get the full path of the requested Video
+		String strFullPath = fInfo.getVideoPath() + File.separator + strVideoName; 
+		// check the Video existence
+		File Video = new File(strFullPath);
+		if(!Video.exists())
 		{
-			feAck.setReturnCode(0);	// file not found
+			feAck.setReturnCode(0);	// Video not found
 			CMEventManager.unicastEvent(feAck, fe.getUserName(), cmInfo);
 			feAck = null;
 			return;
 		}
 		
-		feAck.setReturnCode(1);	// file found
+		feAck.setReturnCode(1);	// Video found
 		feAck.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feAck, fe.getUserName(), cmInfo);
 		
-		// get the file size
-		long lFileSize = file.length();
+		// get the Video size
+		long lVideoSize = Video.length();
 		
-		// add send file information
-		// receiver name, file path, size
-		fInfo.addSendFileInfo(fe.getUserName(), strFullPath, lFileSize, fe.getContentID());
+		// add send Video information
+		// receiver name, Video path, size
+		fInfo.addSendVideoInfo(fe.getUserName(), strFullPath, lVideoSize, fe.getContentID());
 
-		// start file transfer process
-		CMFileEvent feStart = new CMFileEvent();
-		feStart.setID(CMFileEvent.START_FILE_TRANSFER);
+		// start Video transfer process
+		CMVideoEvent feStart = new CMVideoEvent();
+		feStart.setID(CMVideoEvent.START_VIDEO_STREAMING);
 		feStart.setSenderName(myself.getName());
-		feStart.setFileName(fe.getFileName());
-		feStart.setFileSize(lFileSize);
+		feStart.setVideoName(fe.getVideoName());
+		feStart.setVideoSize(lVideoSize);
 		feStart.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feStart, fe.getUserName(), cmInfo);
 
 		feAck = null;
 		feStart = null;
-		file = null;
+		Video = null;
 		return;
 	}
 	
-	private static void processREPLY_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
+	private static void processREPLY_VIDEO_STREAMING(CMVideoEvent fe, CMInfo cmInfo)
 	{
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileManager.processREPLY_FILE_TRANSFER(), file("+fe.getFileName()
+			System.out.println("CMVideoManager.processREPLY_VIDEO_STREAMING(), Video("+fe.getVideoName()
 					+"), return code("+fe.getReturnCode()+"), contentID("+fe.getContentID()+").");
 		}
 		return;
 	}
 	
-	private static void processSTART_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
+	private static void processSTART_VIDEO_STREAMING(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processSTART_FILE_TRANSFER(),");
-			System.out.println("sender("+fe.getSenderName()+"), file("+fe.getFileName()+"), size("
-					+fe.getFileSize()+"), contentID("+fe.getContentID()+").");
+			System.out.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING(),");
+			System.out.println("sender("+fe.getSenderName()+"), Video("+fe.getVideoName()+"), size("
+					+fe.getVideoSize()+"), contentID("+fe.getContentID()+").");
 		}
 		
-		// set file size
-		long lFileSize = fe.getFileSize();
+		// set Video size
+		long lVideoSize = fe.getVideoSize();
 		
-		// set a path of the received file
-		String strFullPath = fInfo.getFilePath();
+		// set a path of the received Video
+		String strFullPath = fInfo.getVideoPath();
 		if(confInfo.getSystemType().equals("CLIENT"))
 		{
-			strFullPath = strFullPath + File.separator + fe.getFileName();
+			strFullPath = strFullPath + File.separator + fe.getVideoName();
 		}
 		else if(confInfo.getSystemType().equals("SERVER"))
 		{
@@ -616,7 +610,7 @@ public class CMStreamingManager {
 				}
 			}
 			
-			strFullPath = strFullPath + File.separator + fe.getFileName();
+			strFullPath = strFullPath + File.separator + fe.getVideoName();
 		}
 		else
 		{
@@ -625,10 +619,10 @@ public class CMStreamingManager {
 		}
 		
 		
-		// open a file output stream
-		RandomAccessFile writeFile;
+		// open a Video output stream
+		RandomAccessFile writeVideo;
 		try {
-			writeFile = new RandomAccessFile(strFullPath, "rw");
+			writeVideo = new RandomAccessFile(strFullPath, "rw");
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -638,14 +632,14 @@ public class CMStreamingManager {
 		
 		// init received size
 		long lRecvSize = 0;
-		// add the received file info in the push list
-		fInfo.addRecvFileInfo(fe.getSenderName(), fe.getFileName(), lFileSize, fe.getContentID(), lRecvSize, writeFile);
+		// add the received Video info in the push list
+		fInfo.addRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), lVideoSize, fe.getContentID(), lRecvSize, writeVideo);
 		
 		// send ack event
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.START_FILE_TRANSFER_ACK);
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.START_VIDEO_STREAMING_ACK);
 		feAck.setUserName(cmInfo.getInteractionInfo().getMyself().getName());
-		feAck.setFileName(fe.getFileName());
+		feAck.setVideoName(fe.getVideoName());
 		feAck.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feAck, fe.getSenderName(), cmInfo);
 
@@ -653,41 +647,41 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	private static void processSTART_FILE_TRANSFER_ACK(CMFileEvent recvFileEvent, CMInfo cmInfo)
+	private static void processSTART_VIDEO_STREAMING_ACK(CMVideoEvent recvVideoEvent, CMInfo cmInfo)
 	{
 		String strReceiver = null;
-		String strFileName = null;
-		String strFullFileName = null;
-		long lFileSize = -1;
+		String strVideoName = null;
+		String strFullVideoName = null;
+		long lVideoSize = -1;
 		int nContentID = -1;
 		String strSenderName = null;
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
-		CMSendFileInfo sInfo = null;
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMSendVideoInfo sInfo = null;
 		
-		// find the CMSendFileInfo object 
-		sInfo = fInfo.findSendFileInfo(recvFileEvent.getUserName(), recvFileEvent.getFileName(), 
-				recvFileEvent.getContentID());
+		// find the CMSendVideoInfo object 
+		sInfo = fInfo.findSendVideoInfo(recvVideoEvent.getUserName(), recvVideoEvent.getVideoName(), 
+				recvVideoEvent.getContentID());
 		if(sInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_ACK(), sendFileInfo not found! : "
-					+"receiver("+recvFileEvent.getUserName()+"), file("+recvFileEvent.getFileName()
-					+"), content ID("+recvFileEvent.getContentID()+")");
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_ACK(), sendVideoInfo not found! : "
+					+"receiver("+recvVideoEvent.getUserName()+"), Video("+recvVideoEvent.getVideoName()
+					+"), content ID("+recvVideoEvent.getContentID()+")");
 			return;
 		}
 		
 		strReceiver = sInfo.getReceiverName();
-		strFullFileName = sInfo.getFilePath();
-		strFileName = getFileNameFromPath(strFullFileName);
-		lFileSize = sInfo.getFileSize();
+		strFullVideoName = sInfo.getVideoPath();
+		strVideoName = getVideoNameFromPath(strFullVideoName);
+		lVideoSize = sInfo.getVideoSize();
 		nContentID = sInfo.getContentID();
 					
 		if(CMInfo._CM_DEBUG)
-			System.out.println("CMFileTransferManager.processSTART_FILE_TRANSFER_ACK(), "
-					+ "Sending file("+strFileName+") to target("+strReceiver+").");
+			System.out.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_ACK(), "
+					+ "Sending Video("+strVideoName+") to target("+strReceiver+").");
 
-		// open the file
+		// open the Video
 		try {
-			sInfo.setReadFile(new RandomAccessFile(strFullFileName, "rw"));
+			sInfo.setReadVideo(new RandomAccessFile(strFullVideoName, "rw"));
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -698,26 +692,26 @@ public class CMStreamingManager {
 		strSenderName = cmInfo.getInteractionInfo().getMyself().getName();
 
 		// send blocks
-		long lRemainBytes = lFileSize;
+		long lRemainBytes = lVideoSize;
 		int nReadBytes = 0;
-		byte[] fileBlock = new byte[CMInfo.FILE_BLOCK_LEN];
-		CMFileEvent fe = new CMFileEvent();
+		byte[] VideoBlock = new byte[CMInfo.VIDEO_BLOCK_LEN];
+		CMVideoEvent fe = new CMVideoEvent();
 		
 		while(lRemainBytes > 0)
 		{
 			try {
-				nReadBytes = sInfo.getReadFile().read(fileBlock);
+				nReadBytes = sInfo.getReadVideo().read(VideoBlock);
 			} catch (IOException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 			
-			// send file block
-			fe = new CMFileEvent();
-			fe.setID(CMFileEvent.CONTINUE_FILE_TRANSFER);
+			// send Video block
+			fe = new CMVideoEvent();
+			fe.setID(CMVideoEvent.CONTINUE_VIDEO_STREAMING);
 			fe.setSenderName(strSenderName);
-			fe.setFileName(strFileName);
-			fe.setFileBlock(fileBlock);
+			fe.setVideoName(strVideoName);
+			fe.setVideoBlock(VideoBlock);
 			fe.setBlockSize(nReadBytes);
 			fe.setContentID(nContentID);
 			CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
@@ -727,23 +721,23 @@ public class CMStreamingManager {
 		
 		// close fis
 		try {
-			sInfo.getReadFile().close();
+			sInfo.getReadVideo().close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
 		if(CMInfo._CM_DEBUG)
-			System.out.println("CMFileTransferManager.processSTART_FILE_TRANSFER_ACK(), "
-					+ "Ending transfer of file("+strFileName+") to target("+strReceiver
-					+"), size("+lFileSize+") Bytes.");
+			System.out.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_ACK(), "
+					+ "Ending transfer of Video("+strVideoName+") to target("+strReceiver
+					+"), size("+lVideoSize+") Bytes.");
 
-		// send the end of file transfer
-		fe = new CMFileEvent();
-		fe.setID(CMFileEvent.END_FILE_TRANSFER);
+		// send the end of Video transfer
+		fe = new CMVideoEvent();
+		fe.setID(CMVideoEvent.END_VIDEO_STREAMING);
 		fe.setSenderName(strSenderName);
-		fe.setFileName(strFileName);
-		fe.setFileSize(lFileSize);
+		fe.setVideoName(strVideoName);
+		fe.setVideoSize(lVideoSize);
 		fe.setContentID(nContentID);
 		CMEventManager.unicastEvent(fe, strReceiver, cmInfo);
 		
@@ -751,31 +745,31 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	private static void processCONTINUE_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
+	private static void processCONTINUE_VIDEO_STREAMING(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		
 		/*
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileManager.processCONTINUE_FILE_TRANSFER(), sender("
-					+fe.getSenderName()+"), file("+fe.getFileName()+"), "+fe.getBlockSize()
+			System.out.println("CMVideoManager.processCONTINUE_VIDEO_STREAMING(), sender("
+					+fe.getSenderName()+"), Video("+fe.getVideoName()+"), "+fe.getBlockSize()
 					+" Bytes, contentID("+fe.getContentID()+").");
 		}
 		*/
 
-		// find info in the recv file list
-		CMRecvFileInfo recvInfo = fInfo.findRecvFileInfo(fe.getSenderName(), fe.getFileName(), fe.getContentID());
+		// find info in the recv Video list
+		CMRecvVideoInfo recvInfo = fInfo.findRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), fe.getContentID());
 		if( recvInfo == null )
 		{
-			System.err.println("CMFileTransferManager.processCONTINUE_FILE_TRANSFER(), "
-					+ "recv file info for sender("+fe.getSenderName()+"), file("+fe.getFileName()
+			System.err.println("CMVideoTransferManager.processCONTINUE_VIDEO_STREAMING(), "
+					+ "recv Video info for sender("+fe.getSenderName()+"), Video("+fe.getVideoName()
 					+"), content ID("+fe.getContentID()+") not found.");
 			return;
 		}
 
 		try {
-			recvInfo.getWriteFile().write(fe.getFileBlock(), 0, fe.getBlockSize());
+			recvInfo.getWriteVideo().write(fe.getVideoBlock(), 0, fe.getBlockSize());
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -785,29 +779,29 @@ public class CMStreamingManager {
 
 		/*
 		if(CMInfo._CM_DEBUG)
-			System.out.println("Cumulative written file size: "+pushInfo.m_lRecvSize+" Bytes.");
+			System.out.println("Cumulative written Video size: "+pushInfo.m_lRecvSize+" Bytes.");
 		*/
 		
 		return;
 	}
 	
-	private static void processEND_FILE_TRANSFER(CMFileEvent fe, CMInfo cmInfo)
+	private static void processEND_VIDEO_STREAMING(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		
-		// find info from recv file list
-		CMRecvFileInfo recvInfo = fInfo.findRecvFileInfo(fe.getSenderName(), fe.getFileName(), fe.getContentID());
+		// find info from recv Video list
+		CMRecvVideoInfo recvInfo = fInfo.findRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), fe.getContentID());
 		if(recvInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processEND_FILE_TRANSFER(), recv file info "
-					+"for sender("+fe.getSenderName()+"), file("+fe.getFileName()+"), content ID("
+			System.err.println("CMVideoTransferManager.processEND_VIDEO_STREAMING(), recv Video info "
+					+"for sender("+fe.getSenderName()+"), Video("+fe.getVideoName()+"), content ID("
 					+fe.getContentID()+") not found.");
 			return;
 		}
-		// close received file descriptor
+		// close received Video descriptor
 		try {
-			recvInfo.getWriteFile().close();
+			recvInfo.getWriteVideo().close();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -815,102 +809,103 @@ public class CMStreamingManager {
 
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processEND_FILE_TRANSFER(), sender("+fe.getSenderName()
-					+"), file("+fe.getFileName()+"), contentID("+fe.getContentID()+"), file size("
-					+recvInfo.getFileSize()+"), received size("+recvInfo.getRecvSize()+").");
+			System.out.println("CMVideoTransferManager.processEND_VIDEO_STREAMING(), sender("+fe.getSenderName()
+					+"), Video("+fe.getVideoName()+"), contentID("+fe.getContentID()+"), Video size("
+					+recvInfo.getVideoSize()+"), received size("+recvInfo.getRecvSize()+").");
 		}
 
-		// remove info from push file list
-		fInfo.removeRecvFileInfo(fe.getSenderName(), fe.getFileName(), fe.getContentID());
+		// remove info from push Video list
+		fInfo.removeRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), fe.getContentID());
 		
 		// send ack
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.END_FILE_TRANSFER_ACK);
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.END_VIDEO_STREAMING_ACK);
 		feAck.setUserName(interInfo.getMyself().getName());
-		feAck.setFileName(fe.getFileName());
+		feAck.setVideoName(fe.getVideoName());
 		feAck.setReturnCode(1);	// success
 		feAck.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feAck, fe.getSenderName(), cmInfo);		
 		feAck = null;
 		
-		CMSNSManager.checkCompleteRecvAttachedFiles(fe, cmInfo);
+		//CMSNSManager.checkCompleteRecvAttachedVideos(fe, cmInfo);
 
 		return;
 	}
 	
-	private static void processEND_FILE_TRANSFER_ACK(CMFileEvent fe, CMInfo cmInfo)
+	private static void processEND_VIDEO_STREAMING_ACK(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		String strReceiverName = fe.getUserName();
-		String strFileName = fe.getFileName();
+		String strVideoName = fe.getVideoName();
 		int nContentID = fe.getContentID();
 		
 		// find completed send info
-		CMSendFileInfo sInfo = fInfo.findSendFileInfo(strReceiverName, strFileName, nContentID);
+		CMSendVideoInfo sInfo = fInfo.findSendVideoInfo(strReceiverName, strVideoName, nContentID);
 		if(sInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processEND_FILE_TRANSFER_ACK(), send info not found");
-			System.err.println("receiver("+strReceiverName+"), file("+strFileName+"), content ID("+nContentID+").");
+			System.err.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_ACK(), send info not found");
+			System.err.println("receiver("+strReceiverName+"), Video("+strVideoName+"), content ID("+nContentID+").");
 		}
 		else
 		{
 			// delete corresponding request from the list
-			fInfo.removeSendFileInfo(strReceiverName, strFileName, nContentID);
+			fInfo.removeSendVideoInfo(strReceiverName, strVideoName, nContentID);
 		}
 	
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processEND_FILE_TRANSFER_ACK(), receiver("
-					+strReceiverName+"), file("+strFileName+"), return code("+fe.getReturnCode()
+			System.out.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_ACK(), receiver("
+					+strReceiverName+"), Video("+strVideoName+"), return code("+fe.getReturnCode()
 					+"), contentID("+nContentID+").");
 		}
 		
-		//////////////////// check the completion of sending attached file of SNS content
-		//////////////////// and check the completion of prefetching an attached file of SNS content
-		CMSNSManager.checkCompleteSendAttachedFiles(fe, cmInfo);
+		//////////////////// check the completion of sending attached Video of SNS content
+		//////////////////// and check the completion of prefetching an attached Video of SNS content
+		//CMSNSManager.checkCompleteSendAttachedVideos(fe, cmInfo);
 		
 		return;
 	}
 	
-	private static void processREQUEST_DIST_FILE_PROC(CMFileEvent fe, CMInfo cmInfo)
+	private static void processREQUEST_DIST_Video_PROC(CMVideoEvent fe, CMInfo cmInfo)
 	{
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processREQUEST_DIST_FILE_PROC(), user("
-						+fe.getUserName()+") requests the distributed file processing.");
+			System.out.println("CMVideoTransferManager.processREQUEST_DIST_Video_PROC(), user("
+						+fe.getUserName()+") requests the distributed Video processing.");
 		}
 		return;
 	}
 	
-	private static void processREQUEST_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
+	private static void processREQUEST_VIDEO_STREAMING_CHAN(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processREQUEST_FILE_TRANSFER_CHAN(), requester("
-					+fe.getUserName()+"), file("+fe.getFileName()+"), contentID("+fe.getContentID()
+			System.out.println("CMVideoTransferManager.processREQUEST_VIDEO_STREAMING_CHAN(), requester("
+					+fe.getUserName()+"), Video("+fe.getVideoName()+"), contentID("+fe.getContentID()
 					+").");
 		}
 
-		String strFileName = fe.getFileName();
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.REPLY_FILE_TRANSFER_CHAN);
-		feAck.setFileName(strFileName);
+		String strVideoName = fe.getVideoName();
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.REPLY_VIDEO_STREAMING_CHAN);
+		feAck.setVideoName(strVideoName);
 
-		// get the full path of the requested file
-		String strFullPath = fInfo.getFilePath() + File.separator + strFileName; 
-		// check the file existence
-		File file = new File(strFullPath);
-		if(!file.exists())
+		// get the full path of the requested Video
+		String strFullPath = fInfo.getVideoPath() + File.separator + strVideoName; 
+		// check the Video existence
+		File Video = new File(strFullPath);
+		System.out.println("- Full Path : " + strFullPath);
+		if(!Video.exists())
 		{
-			feAck.setReturnCode(0);	// file not found
+			feAck.setReturnCode(0);	// Video not found
 			CMEventManager.unicastEvent(feAck, fe.getUserName(), cmInfo);
 			feAck = null;
 			return;
 		}
 		
-		feAck.setReturnCode(1);	// file found
+		feAck.setReturnCode(1);	// Video found
 		feAck.setContentID(fe.getContentID());
 		CMEventManager.unicastEvent(feAck, fe.getUserName(), cmInfo);
 		
@@ -918,35 +913,35 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	private static void processREPLY_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
+	private static void processREPLY_VIDEO_STREAMING_CHAN(CMVideoEvent fe, CMInfo cmInfo)
 	{
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileManager.processREPLY_FILE_TRANSFER_CHAN(), file("+fe.getFileName()
+			System.out.println("CMVideoManager.processREPLY_VIDEO_STREAMING_CHAN(), Video("+fe.getVideoName()
 					+"), return code("+fe.getReturnCode()+"), contentID("+fe.getContentID()+").");
 		}
 		return;
 	}
 	
-	private static void processSTART_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
+	private static void processSTART_VIDEO_STREAMING_CHAN(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN(),");
-			System.out.println("sender("+fe.getSenderName()+"), file("+fe.getFileName()+"), size("
-					+fe.getFileSize()+"), contentID("+fe.getContentID()+").");
+			System.out.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN(),");
+			System.out.println("sender("+fe.getSenderName()+"), Video("+fe.getVideoName()+"), size("
+					+fe.getVideoSize()+"), contentID("+fe.getContentID()+").");
 		}
 		
-		// set file size
-		long lFileSize = fe.getFileSize();
+		// set Video size
+		long lVideoSize = fe.getVideoSize();
 		
-		// set a path of the received file
-		String strFullPath = fInfo.getFilePath();
+		// set a path of the received Video
+		String strFullPath = fInfo.getVideoPath();
 		if(confInfo.getSystemType().equals("CLIENT"))
 		{
-			strFullPath = strFullPath + File.separator + fe.getFileName();
+			strFullPath = strFullPath + File.separator + fe.getVideoName();
 		}
 		else if(confInfo.getSystemType().equals("SERVER"))
 		{
@@ -968,7 +963,7 @@ public class CMStreamingManager {
 				}
 			}
 			
-			strFullPath = strFullPath + File.separator + fe.getFileName();
+			strFullPath = strFullPath + File.separator + fe.getVideoName();
 		}
 		else
 		{
@@ -994,78 +989,78 @@ public class CMStreamingManager {
 		
 		if(sc == null)
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN();"
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN();"
 					+ "the default blocking TCP socket channel not found!");
 			return;
 		}
 		else if(!sc.isOpen())
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN();"
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN();"
 					+ "the default blocking TCP socket channel is closed!");
 			return;
 		}
 		
 		if(dsc == null)
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN();"
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN();"
 					+ "the default TCP socket channel not found!");
 			return;
 		}
 		else if(!dsc.isOpen())
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN();"
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN();"
 					+ "the default TCP socket channel is closed!");
 			return;
 		}
 
-		// check the existing file
-		File file = new File(strFullPath);
+		// check the existing Video
+		File Video = new File(strFullPath);
 		long lRecvSize = 0;
-		if(file.exists())
+		if(Video.exists())
 		{
-			// init received file size
-			lRecvSize = file.length();
+			// init received Video size
+			lRecvSize = Video.length();
 		}
 
-		// add the received file info
+		// add the received Video info
 		boolean bResult = false;
-		CMRecvFileInfo rfInfo = new CMRecvFileInfo();
+		CMRecvVideoInfo rfInfo = new CMRecvVideoInfo();
 		rfInfo.setSenderName(fe.getSenderName());
 		rfInfo.setReceiverName(cmInfo.getInteractionInfo().getMyself().getName());
-		rfInfo.setFileName(fe.getFileName());
-		rfInfo.setFilePath(strFullPath);
-		rfInfo.setFileSize(lFileSize);
+		rfInfo.setVideoName(fe.getVideoName());
+		rfInfo.setVideoPath(strFullPath);
+		rfInfo.setVideoSize(lVideoSize);
 		rfInfo.setContentID(fe.getContentID());
 		rfInfo.setRecvSize(lRecvSize);
-		//rfInfo.setWriteFile(raf);
+		//rfInfo.setWriteVideo(raf);
 		rfInfo.setRecvChannel(sc);
 		rfInfo.setDefaultChannel(dsc);
 		
-		bResult = fInfo.addRecvFileInfo(rfInfo);
+		bResult = fInfo.addRecvVideoInfo(rfInfo);
 		if(!bResult)
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN(); failed to add "
-					+ "the receiving file info!");
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN(); failed to add "
+					+ "the receiving Video info!");
 			return;
 		}
 		
 		if(!fInfo.isRecvOngoing(fe.getSenderName()))
 		{
-			sendSTART_FILE_TRANSFER_CHAN_ACK(rfInfo, cmInfo);
+			sendSTART_VIDEO_STREAMING_CHAN_ACK(rfInfo, cmInfo);
 			/*
-			// start a dedicated thread to receive the file
-			Future<CMRecvFileInfo> future = null;
-			CMRecvFileTask recvFileTask = new CMRecvFileTask(rfInfo);
-			future = fInfo.getExecutorService().submit(recvFileTask, rfInfo);
+			// start a dedicated thread to receive the Video
+			Future<CMRecvVideoInfo> future = null;
+			CMRecvVideoTask recvVideoTask = new CMRecvVideoTask(rfInfo);
+			future = fInfo.getExecutorService().submit(recvVideoTask, rfInfo);
 			rfInfo.setRecvTaskResult(future);
 			
 			// send ack event
-			CMFileEvent feAck = new CMFileEvent();
-			feAck.setID(CMFileEvent.START_FILE_TRANSFER_CHAN_ACK);
+			CMVideoEvent feAck = new CMVideoEvent();
+			feAck.setID(CMVideoEvent.START_VIDEO_STREAMING_CHAN_ACK);
 			feAck.setUserName(cmInfo.getInteractionInfo().getMyself().getName());
-			feAck.setFileName(fe.getFileName());
+			feAck.setVideoName(fe.getVideoName());
 			feAck.setContentID(fe.getContentID());
-			feAck.setReceivedFileSize(lRecvSize);
+			feAck.setReceivedVideoSize(lRecvSize);
 			CMEventManager.unicastEvent(feAck, fe.getSenderName(), cmInfo);
 
 			feAck = null;
@@ -1075,66 +1070,67 @@ public class CMStreamingManager {
 		return;
 	}
 	
-	private static void processSTART_FILE_TRANSFER_CHAN_ACK(CMFileEvent fe, CMInfo cmInfo)
+	private static void processSTART_VIDEO_STREAMING_CHAN_ACK(CMVideoEvent fe, CMInfo cmInfo)
 	{
 		String strReceiver = null;
-		String strFileName = null;
-		String strFullFileName = null;
-		long lFileSize = -1;	// file size
+		String strVideoName = null;
+		String strFullVideoName = null;
+		long lVideoSize = -1;	// Video size
 		int nContentID = -1;
 		long lRecvSize = -1;	// received size by the receiver
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
-		CMSendFileInfo sInfo = null;
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
+		CMSendVideoInfo sInfo = null;
 		
-		// find the CMSendFileInfo object 
-		sInfo = fInfo.findSendFileInfo(fe.getUserName(), fe.getFileName(), fe.getContentID());
+		// find the CMSendVideoInfo object 
+		sInfo = fInfo.findSendVideoInfo(fe.getUserName(), fe.getVideoName(), fe.getContentID());
 		if(sInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN_ACK(), sendFileInfo "
-					+ "not found! : receiver("+fe.getUserName()+"), file("+fe.getFileName()
+			System.err.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN_ACK(), sendVideoInfo "
+					+ "not found! : receiver("+fe.getUserName()+"), Video("+fe.getVideoName()
 					+"), content ID("+fe.getContentID()+")");
 			return;
 		}
 		
 		strReceiver = sInfo.getReceiverName();
-		strFullFileName = sInfo.getFilePath();
-		strFileName = getFileNameFromPath(strFullFileName);
-		lFileSize = sInfo.getFileSize();
+		strFullVideoName = sInfo.getVideoPath();
+		strVideoName = getVideoNameFromPath(strFullVideoName);
+		lVideoSize = sInfo.getVideoSize();
 		nContentID = sInfo.getContentID();
 		
-		lRecvSize = fe.getReceivedFileSize();
+		lRecvSize = fe.getReceivedVideoSize();
 		if(lRecvSize > 0)
 			sInfo.setSentSize(lRecvSize);	// update the sent size 
 					
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processSTART_FILE_TRANSFER_CHAN_ACK(); "
-					+ "receiver("+strReceiver+"), file path("+strFullFileName+"), file name("+strFileName
-					+ "), file size("+lFileSize+"), content ID("+nContentID+").");
-			System.out.println("already received file size by the receiver("+lRecvSize+").");
+			System.out.println("CMVideoTransferManager.processSTART_VIDEO_STREAMING_CHAN_ACK(); "
+					+ "receiver("+strReceiver+"), Video path("+strFullVideoName+"), Video name("+strVideoName
+					+ "), Video size("+lVideoSize+"), content ID("+nContentID+").");
+			System.out.println("already received Video size by the receiver("+lRecvSize+").");
 		}
-
+		
+		CMCommInfo commInfo = cmInfo.getCommInfo();
 		// start a dedicated sending thread
-		Future<CMSendFileInfo> future = null;
-		CMSendFileTask sendFileTask = new CMSendFileTask(sInfo);
-		future = fInfo.getExecutorService().submit(sendFileTask, sInfo);
+		Future<CMSendVideoInfo> future = null;
+		CMSendVideoTask sendVideoTask = new CMSendVideoTask(sInfo, commInfo.getSendBlockingEventQueue());
+		future = fInfo.getExecutorService().submit(sendVideoTask, sInfo);
 		sInfo.setSendTaskResult(future);		
 
 		return;		
 	}
 	
-	private static void processEND_FILE_TRANSFER_CHAN(CMFileEvent fe, CMInfo cmInfo)
+	private static void processEND_VIDEO_STREAMING_CHAN(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		CMInteractionInfo interInfo = cmInfo.getInteractionInfo();
 		boolean bResult = false;
 
-		// find info from recv file list
-		CMRecvFileInfo recvInfo = fInfo.findRecvFileInfo(fe.getSenderName(), fe.getFileName(), fe.getContentID());
+		// find info from recv Video list
+		CMRecvVideoInfo recvInfo = fInfo.findRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), fe.getContentID());
 		if(recvInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processEND_FILE_TRANSFER_CHAN(), recv file info "
-					+"for sender("+fe.getSenderName()+"), file("+fe.getFileName()+"), content ID("
+			System.err.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_CHAN(), recv Video info "
+					+"for sender("+fe.getSenderName()+"), Video("+fe.getVideoName()+"), content ID("
 					+fe.getContentID()+") not found.");
 			return;
 		}
@@ -1155,102 +1151,102 @@ public class CMStreamingManager {
 		
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processEND_FILE_TRANSFER_CHAN(), sender("+fe.getSenderName()
-					+"), file("+fe.getFileName()+"), contentID("+fe.getContentID()+"), file size("
-					+recvInfo.getFileSize()+"), received size("+recvInfo.getRecvSize()+").");
+			System.out.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_CHAN(), sender("+fe.getSenderName()
+					+"), Video("+fe.getVideoName()+"), contentID("+fe.getContentID()+"), Video size("
+					+recvInfo.getVideoSize()+"), received size("+recvInfo.getRecvSize()+").");
 		}
 
 		// make ack event
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.END_FILE_TRANSFER_CHAN_ACK);
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.END_VIDEO_STREAMING_CHAN_ACK);
 		feAck.setUserName(interInfo.getMyself().getName());
-		feAck.setFileName(fe.getFileName());
+		feAck.setVideoName(fe.getVideoName());
 		feAck.setContentID(fe.getContentID());
 
-		// check out whether the file is completely received
-		if(recvInfo.getFileSize() == recvInfo.getRecvSize())
+		// check out whether the Video is completely received
+		if(recvInfo.getVideoSize() == recvInfo.getRecvSize())
 		{
 			feAck.setReturnCode(1);	// success
 			bResult = true;
 		}
 		else
 		{
-			System.err.println("CMFileTransferManager.processEND_FILE_TRANSFER_CHAN(); incompletely received!");
+			System.err.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_CHAN(); incompletely received!");
 			feAck.setReturnCode(0); // failure
 			bResult = false;
 		}
 		
-		// remove info from push file list
-		fInfo.removeRecvFileInfo(fe.getSenderName(), fe.getFileName(), fe.getContentID());
+		// remove info from push Video list
+		fInfo.removeRecvVideoInfo(fe.getSenderName(), fe.getVideoName(), fe.getContentID());
 		
 		// send ack
 		CMEventManager.unicastEvent(feAck, fe.getSenderName(), cmInfo);		
 		feAck = null;
 
-		if(bResult)
-			CMSNSManager.checkCompleteRecvAttachedFiles(fe, cmInfo);
+		//if(bResult)
+		//	CMSNSManager.checkCompleteRecvAttachedVideos(fe, cmInfo);
 
-		// check whether there is a remaining receiving file info or not
-		CMRecvFileInfo nextRecvInfo = fInfo.findRecvFileInfoNotStarted(fe.getSenderName());
+		// check whether there is a remaining receiving Video info or not
+		CMRecvVideoInfo nextRecvInfo = fInfo.findRecvVideoInfoNotStarted(fe.getSenderName());
 		if(nextRecvInfo != null)
 		{
-			sendSTART_FILE_TRANSFER_CHAN_ACK(nextRecvInfo, cmInfo);
+			sendSTART_VIDEO_STREAMING_CHAN_ACK(nextRecvInfo, cmInfo);
 		}
 		
 		return;
 	}
 	
-	private static void processEND_FILE_TRANSFER_CHAN_ACK(CMFileEvent fe, CMInfo cmInfo)
+	private static void processEND_VIDEO_STREAMING_CHAN_ACK(CMVideoEvent fe, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 		String strReceiverName = fe.getUserName();
-		String strFileName = fe.getFileName();
+		String strVideoName = fe.getVideoName();
 		int nContentID = fe.getContentID();
 		
 		// find completed send info
-		CMSendFileInfo sInfo = fInfo.findSendFileInfo(strReceiverName, strFileName, nContentID);
+		CMSendVideoInfo sInfo = fInfo.findSendVideoInfo(strReceiverName, strVideoName, nContentID);
 		if(sInfo == null)
 		{
-			System.err.println("CMFileTransferManager.processEND_FILE_TRANSFER_CHAN_ACK(), send info not found");
-			System.err.println("receiver("+strReceiverName+"), file("+strFileName+"), content ID("+nContentID+").");
+			System.err.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_CHAN_ACK(), send info not found");
+			System.err.println("receiver("+strReceiverName+"), Video("+strVideoName+"), content ID("+nContentID+").");
 		}
 		else
 		{
 			// delete corresponding request from the list
-			fInfo.removeSendFileInfo(strReceiverName, strFileName, nContentID);
+			fInfo.removeSendVideoInfo(strReceiverName, strVideoName, nContentID);
 		}
 	
 		if(CMInfo._CM_DEBUG)
 		{
-			System.out.println("CMFileTransferManager.processEND_FILE_TRANSFER_CHAN_ACK(), receiver("
-					+strReceiverName+"), file("+strFileName+"), return code("+fe.getReturnCode()
+			System.out.println("CMVideoTransferManager.processEND_VIDEO_STREAMING_CHAN_ACK(), receiver("
+					+strReceiverName+"), Video("+strVideoName+"), return code("+fe.getReturnCode()
 					+"), contentID("+nContentID+").");
 		}
 		
-		//////////////////// check the completion of sending attached file of SNS content
-		//////////////////// and check the completion of prefetching an attached file of SNS content
-		CMSNSManager.checkCompleteSendAttachedFiles(fe, cmInfo);
+		//////////////////// check the completion of sending attached Video of SNS content
+		//////////////////// and check the completion of prefetching an attached Video of SNS content
+		//CMSNSManager.checkCompleteSendAttachedVideos(fe, cmInfo);
 
 		return;	
 	}
 	
-	private static void sendSTART_FILE_TRANSFER_CHAN_ACK(CMRecvFileInfo rfInfo, CMInfo cmInfo)
+	private static void sendSTART_VIDEO_STREAMING_CHAN_ACK(CMRecvVideoInfo rfInfo, CMInfo cmInfo)
 	{
-		CMVideoInfo fInfo = cmInfo.getVideoInfo();
+		CMStreamingInfo fInfo = cmInfo.getStreamingInfo();
 
-		// start a dedicated thread to receive the file
-		Future<CMRecvFileInfo> future = null;
-		CMRecvFileTask recvFileTask = new CMRecvFileTask(rfInfo);
-		future = fInfo.getExecutorService().submit(recvFileTask, rfInfo);
+		// start a dedicated thread to receive the Video
+		Future<CMRecvVideoInfo> future = null;
+		CMRecvVideoTask recvVideoTask = new CMRecvVideoTask(rfInfo);
+		future = fInfo.getExecutorService().submit(recvVideoTask, rfInfo);
 		rfInfo.setRecvTaskResult(future);
 		
 		// send ack event
-		CMFileEvent feAck = new CMFileEvent();
-		feAck.setID(CMFileEvent.START_FILE_TRANSFER_CHAN_ACK);
+		CMVideoEvent feAck = new CMVideoEvent();
+		feAck.setID(CMVideoEvent.START_VIDEO_STREAMING_CHAN_ACK);
 		feAck.setUserName(cmInfo.getInteractionInfo().getMyself().getName());
-		feAck.setFileName(rfInfo.getFileName());
+		feAck.setVideoName(rfInfo.getVideoName());
 		feAck.setContentID(rfInfo.getContentID());
-		feAck.setReceivedFileSize(rfInfo.getRecvSize());
+		feAck.setReceivedVideoSize(rfInfo.getRecvSize());
 		CMEventManager.unicastEvent(feAck, rfInfo.getSenderName(), cmInfo);
 
 		feAck = null;

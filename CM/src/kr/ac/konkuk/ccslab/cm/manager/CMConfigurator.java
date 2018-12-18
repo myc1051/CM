@@ -39,6 +39,8 @@ public class CMConfigurator {
 		if(strFilePath == null) strFilePath = "."; // if no default path is set, it is set to the current working directory
 		confInfo.setFilePath(strFilePath);
 		
+		confInfo.setVideoPath(strFilePath);
+		
 		// default append mode for the file transfer
 		confInfo.setFileAppendScheme(Byte.parseByte(CMConfigurator.getConfiguration(fName, "FILE_APPEND_SCHEME")));
 		
@@ -100,6 +102,7 @@ public class CMConfigurator {
 			System.out.println("MULTICAST_PORT: "+confInfo.getMulticastPort());
 			System.out.println("MY_ADDR: "+confInfo.getMyAddress());
 			System.out.println("FILE_PATH: "+confInfo.getFilePath());
+			System.out.println("VIDEO_PATH: "+confInfo.getVideoPath());
 			System.out.println("FILE_APPEND_SCHEME: "+confInfo.isFileAppendScheme());
 			System.out.println("SIM_TRANS_DELAY: "+confInfo.getSimTransDelay());
 			if( confInfo.getSystemType().equals("SERVER") )

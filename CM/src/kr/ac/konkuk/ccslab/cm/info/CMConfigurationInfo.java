@@ -41,6 +41,9 @@ public class CMConfigurationInfo {
 	// File append scheme
 	private byte m_bFileAppendScheme;	
 	
+	// Default path for Video streaming
+	private String m_strVideoPath;
+		
 	// Simulation parameter for added transmission delay
 	private int m_nSimTransDelay;
 	
@@ -76,6 +79,7 @@ public class CMConfigurationInfo {
 		m_strDBName = "";
 		
 		m_strFilePath = ".";
+		m_strVideoPath = ".";
 		m_bFileTransferScheme = 0;
 		m_bFileAppendScheme = 0;
 		
@@ -432,6 +436,30 @@ public class CMConfigurationInfo {
 	public String getFilePath()
 	{
 		return m_strFilePath;
+	}
+	
+	public void setVideoPath(String path)
+	{
+		//m_strFilePath = path;
+		StringTokenizer tokenizer = new StringTokenizer(path, "/\\");
+		StringBuffer sbuf = new StringBuffer();
+		while(tokenizer.hasMoreTokens())
+		{
+			sbuf.append(tokenizer.nextToken());
+			if(tokenizer.countTokens() > 0)
+				sbuf.append(File.separator);				
+		}
+		m_strVideoPath = sbuf.toString();
+		
+		if(CMInfo._CM_DEBUG)
+			System.out.println("CMConfigurationInfo.setVideoPath(): "+m_strVideoPath);
+		
+		return;
+	}
+	
+	public String getVideoPath()
+	{
+		return m_strVideoPath;
 	}
 	
 	public void setFileTransferScheme(int bScheme)

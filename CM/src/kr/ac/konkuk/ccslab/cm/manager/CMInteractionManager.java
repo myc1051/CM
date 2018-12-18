@@ -100,6 +100,9 @@ public class CMInteractionManager {
 		// initialize file manager
 		CMFileTransferManager.init(cmInfo);
 		
+		// initialize video manager
+		CMStreamingManager.init(cmInfo);
+		
 		if(CMInfo._CM_DEBUG)
 			System.out.println("CMInteractionManager.init(), succeeded.");
 		
@@ -318,6 +321,9 @@ public class CMInteractionManager {
 			case CMInfo.CM_USER_EVENT:
 				if(CMInfo._CM_DEBUG)
 					System.out.println("CMInteractionManager.processEvent(), user event, nothing to do.");
+				break;
+			case CMInfo.CM_VIDEO_EVENT:
+				CMStreamingManager.processEvent(msg, cmInfo);
 				break;
 			default:
 				System.err.println("CMInteractionManager.processEvent(), unknown event type: "
