@@ -2657,7 +2657,7 @@ public class CMClientApp {
 
 	public void testStreaming()
 	{
-		CMStreamingApp cmstreamigapp = new CMStreamingApp();
+		CMStreamingApp cmstreamigapp = new CMStreamingApp(m_clientStub.getCMInfo());
 		//CMStreamingManager.requestVideo("1.Mjpeg", "SERVER", m_clientStub.getCMInfo());
 		return;
 	}

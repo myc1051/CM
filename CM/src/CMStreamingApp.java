@@ -4,12 +4,26 @@
 	   ---------------------- */
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectionKey;
 import java.util.*;
 import java.text.*;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 import javax.swing.Timer;
+
+import kr.ac.konkuk.ccslab.cm.entity.CMChannelInfo;
+import kr.ac.konkuk.ccslab.cm.event.CMFileEvent;
+import kr.ac.konkuk.ccslab.cm.event.CMVideoEvent;
+import kr.ac.konkuk.ccslab.cm.info.CMCommInfo;
+import kr.ac.konkuk.ccslab.cm.info.CMConfigurationInfo;
+import kr.ac.konkuk.ccslab.cm.info.CMInfo;
+import kr.ac.konkuk.ccslab.cm.manager.CMCommManager;
+import kr.ac.konkuk.ccslab.cm.manager.CMEventManager;
+import kr.ac.konkuk.ccslab.cm.manager.CMStreamingManager;
+
 
 public class CMStreamingApp {
 
@@ -33,7 +47,7 @@ public class CMStreamingApp {
     //----------------
     DatagramPacket rcvdp;            //UDP packet received from the server
     DatagramSocket RTPsocket;        //socket to be used to send and receive UDP packets
-    static int RTP_RCV_PORT = 25000; //port where the client will receive the RTP packets
+    static int RTP_RCV_PORT = 60000; //port where the client will receive the RTP packets
     
     Timer timer; //timer used to receive data from the UDP socket
     byte[] buf;  //buffer used to store data received from the server 
@@ -64,6 +78,9 @@ public class CMStreamingApp {
     static int RTCP_RCV_PORT = 19001;   //port where the client will receive the RTP packets
     static int RTCP_PERIOD = 400;       //How often to send RTCP packets
     RtcpSender rtcpSender;
+    DatagramChannel dc;
+//    ByteBuffer recv_buf = ByteBuffer.allocateDirect(CMInfo.VIDEO_BLOCK_LEN);
+    ByteBuffer recv_buf = ByteBuffer.allocate(CMInfo.VIDEO_BLOCK_LEN);
 
     //Video constants:
     //------------------
@@ -81,11 +98,12 @@ public class CMStreamingApp {
     int statHighSeqNb;          //Highest sequence number received in session
 
     FrameSynchronizer fsynch;
-   
+	static CMInfo cmInfo;
     //--------------------------
     //Constructor
     //--------------------------
-    public CMStreamingApp() {
+    public CMStreamingApp(CMInfo cmInfo) {
+    	this.cmInfo = cmInfo;
 
         //build GUI
         //--------------------------
@@ -137,7 +155,7 @@ public class CMStreamingApp {
 
         //init timer
         //--------------------------
-        timer = new Timer(20, new timerListener());
+        timer = new Timer(1, new timerListener());
         timer.setInitialDelay(0);
         timer.setCoalesce(true);
 
@@ -149,14 +167,72 @@ public class CMStreamingApp {
 
         //create the frame synchronizer
         fsynch = new FrameSynchronizer(100);
+        
+        
+        // 채널 생성
+		int nChPort = 60000; // 받는쪽이 60000
+		CMCommInfo commInfo = cmInfo.getCommInfo();
+		CMConfigurationInfo confInfo = cmInfo.getConfigurationInfo();
+		CMChannelInfo<Integer> nonBlockDCInfo = commInfo.getNonBlockDatagramChannelInfo();
+		//DatagramChannel dc = null; 선언은 맨 위에 했음
+		boolean result = false;
+		
+		/*
+		if(nonBlockDCInfo.findChannel(nChPort) != null)
+		{
+			System.err.println("CMStreamingManager.addNonBlockDatagramChannel(), channel key("+nChPort+") already exists.");
+			return;
+		}
+		try {
+			dc = (DatagramChannel) CMCommManager.openNonBlockChannel(CMInfo.CM_DATAGRAM_CHANNEL, 
+					"localhost", nChPort, cmInfo); // confInfo.getMyAddress()
+ 			if(dc == null)
+			{
+				System.err.println("CMStreamingManager.addNonBlockDatagramChannel(), failed.");
+				return;
+			}
+			
+			result = nonBlockDCInfo.addChannel(nChPort, dc);
+			if(result)
+			{
+				if(CMInfo._CM_DEBUG)
+					System.out.println("CMStreamingManager.addNonBlockDatagramChannel(), succeeded. port("+nChPort+")");
+			}
+			else
+			{
+				System.err.println("CMStreamingManager.addNonBlockDatagramChannel(), failed! port("+nChPort+")");
+				return;
+			}
+		} catch (IOException ioe) {
+			// TODO Auto-generated catch block
+			ioe.printStackTrace();
+		}
+		*/
+
+		try {
+			dc = DatagramChannel.open();
+			dc.setOption(StandardSocketOptions.SO_REUSEADDR, true);
+			dc.socket().bind(new InetSocketAddress("localhost", nChPort));
+			dc.configureBlocking(false);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		
+		// dc.register(sel, SelectionKey.OP_READ); cm 등록부분
+		System.out.println("CMStreamingApp 채널생성 완료");
+
+		// 채널생성 완료
     }
 
     //------------------------------------
     //main
     //------------------------------------
+    /*
     public static void main(String argv[]) throws Exception {
+    
         //Create a Client object
-    	CMStreamingApp theClient = new CMStreamingApp();
+    	CMStreamingApp theClient = new CMStreamingApp(cmInfo);
         
         //get server RTSP port and IP address from the command line
         //------------------
@@ -172,7 +248,7 @@ public class CMStreamingApp {
 
         //get video filename to request:
         //VideoFileName = argv[2];
-        VideoFileName = "movie.Mjpeg";
+        VideoFileName = "1.Mjpeg";
 
         //Establish a TCP connection with the server to exchange RTSP messages
         //------------------
@@ -188,8 +264,8 @@ public class CMStreamingApp {
         
         //init RTSP state:
         state = INIT;
-    }
-
+    } //end of main func
+	*/ 
 
     //------------------------------------
     //Handler for buttons
@@ -203,27 +279,24 @@ public class CMStreamingApp {
 
             System.out.println("Setup Button pressed !");      
             if (state == INIT) {
-                //Init non-blocking RTPsocket that will be used to receive data
-                try {
-                    //construct a new DatagramSocket to receive RTP packets from the server, on port RTP_RCV_PORT
-                    RTPsocket = new DatagramSocket(RTP_RCV_PORT);
-                    //UDP socket for sending QoS RTCP packets
-                    RTCPsocket = new DatagramSocket();
-                    //set TimeOut value of the socket to 5msec.
-                    RTPsocket.setSoTimeout(5);
-                }
-                catch (SocketException se)
-                {
-                    System.out.println("Socket exception: "+se);
-                    System.exit(0);
-                }
-
+            	VideoFileName = "1.Mjpeg";
+            	
+            	CMStreamingManager.requestVideo(VideoFileName, "SERVER", cmInfo);
+            	
                 //init RTSP sequence number
                 RTSPSeqNb = 1;
-
+                
+                System.out.println("send setup message!");      
+                
+                //change RTSP state and print new state 
+                state = READY;
+                System.out.println("New RTSP state: READY");
+            
+                timer.start();
+                //rtcpSender.startSend();
+                /* 기존코드. 서버응답을 받은 후 처리
                 //Send SETUP message to the server
                 sendRequest("SETUP");
-
                 //Wait for the response 
                 if (parseServerResponse() != 200)
                     System.out.println("Invalid Server Response");
@@ -233,6 +306,7 @@ public class CMStreamingApp {
                     state = READY;
                     System.out.println("New RTSP state: READY");
                 }
+                */
             }
             //else if state != INIT then do nothing
         }
@@ -256,6 +330,7 @@ public class CMStreamingApp {
                 //Send PLAY message to the server
                 sendRequest("PLAY");
 
+                /* 기존코드. 서버 응답을 받은이후의 처리
                 //Wait for the response 
                 if (parseServerResponse() != 200) {
                     System.out.println("Invalid Server Response");
@@ -269,6 +344,7 @@ public class CMStreamingApp {
                     timer.start();
                     rtcpSender.startSend();
                 }
+                */
             }
             //else if state != READY then do nothing
         }
@@ -369,21 +445,37 @@ public class CMStreamingApp {
 
         public void actionPerformed(ActionEvent e) {
           
-            //Construct a DatagramPacket to receive data from the UDP socket
-            rcvdp = new DatagramPacket(buf, buf.length);
-
+            
             try {
-                //receive the DP from the socket, save time for stats
-                RTPsocket.receive(rcvdp);
-
-                double curTime = System.currentTimeMillis();
+            	
+            	//receive the DP from the socket, save time for stats
+                if(dc == null) 
+                	System.out.println("dc = null");
+        		
+            	if(dc.receive(recv_buf) == null)
+            	{
+            		//System.out.println("패킷 수신 null");
+            		return;
+            	}
+            	//dc.read(recv_buf);
+            	//recv_buf.flip();
+                /*
+            	for( int i = 0 ; i < 10; i++ ) { // 바이트버퍼 내용 확인 recv_buf.capacity() 
+        			System.out.println("position[" + recv_buf.position() +"] value["+ recv_buf.get() + "]");
+        		}*/
+            	
+            	double curTime = System.currentTimeMillis();
                 statTotalPlayTime += curTime - statStartTime; 
                 statStartTime = curTime;
-
+                
+                //Construct a DatagramPacket to receive data from the UDP socket
+                //rcvdp = new DatagramPacket(recv_buf, recv_buf.capacity());
+                recv_buf.flip();
+                System.out.println("recv_buf :  " + recv_buf);
+                
                 //create an RTPpacket object from the DP
-                RTPpacket rtp_packet = new RTPpacket(rcvdp.getData(), rcvdp.getLength());
+                RTPpacket rtp_packet = new RTPpacket(recv_buf.array(), recv_buf.capacity());
                 int seqNb = rtp_packet.getsequencenumber();
-
                 //this is the highest seq num received
 
                 //print important header fields of the RTP packet received: 

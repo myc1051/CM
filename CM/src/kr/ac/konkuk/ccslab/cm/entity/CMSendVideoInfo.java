@@ -1,12 +1,13 @@
 package kr.ac.konkuk.ccslab.cm.entity;
 
 import java.io.RandomAccessFile;
+import java.nio.channels.DatagramChannel;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.Future;
 
 public class CMSendVideoInfo extends CMTransVideoInfo {
 	private long m_lSentSize;	// size already sent to the receiver
-	private SocketChannel m_sendChannel; // the dedicated channel for sending the file
+	private DatagramChannel m_sendChannel; // the dedicated channel for sending the file
 	private SocketChannel m_defaultChannel; // the default channel for sending the control event
 	private RandomAccessFile m_readFile;// for reading file blocks of the sent file
 	private Future<CMSendVideoInfo> m_sendTaskResult;	// the result of the submitted sending task to the thread pool
@@ -42,7 +43,7 @@ public class CMSendVideoInfo extends CMTransVideoInfo {
 	{
 		if(!super.equals(o)) return false;
 		
-		CMSendFileInfo sfInfo = (CMSendFileInfo) o;
+		CMSendVideoInfo sfInfo = (CMSendVideoInfo) o;
 		String strReceiverName = sfInfo.getReceiverName();
 		
 		if(strReceiverName.equals(m_strReceiverName))
@@ -71,13 +72,13 @@ public class CMSendVideoInfo extends CMTransVideoInfo {
 		return m_lSentSize;
 	}
 
-	public void setSendChannel(SocketChannel channel)
+	public void setSendChannel(DatagramChannel channel)
 	{
 		m_sendChannel = channel;
 		return;
 	}
 	
-	public SocketChannel getSendChannel()
+	public DatagramChannel getSendChannel()
 	{
 		return m_sendChannel;
 	}

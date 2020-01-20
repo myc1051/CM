@@ -21,7 +21,8 @@ public class CMInfo {
 	public static final int SO_RCVBUF_LEN = 8192;
 	public static final int MAX_EVENT_SIZE = 8192;
 	public static final int MIN_EVENT_SIZE = 32;
-	public static final int VIDEO_BLOCK_LEN = 4092;
+	//public static final int VIDEO_BLOCK_LEN = 4092;
+	public static final int VIDEO_BLOCK_LEN = 20000;
 	
 	// big/little endian
 	public static final int CM_BIG_ENDIAN = 0;

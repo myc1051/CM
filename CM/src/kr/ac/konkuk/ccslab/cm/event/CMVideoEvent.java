@@ -174,7 +174,6 @@ public class CMVideoEvent extends CMEvent{
 	{		
 		int nByteNum = 0;
 		nByteNum = super.getByteNum();
-		
 		switch(m_nID)
 		{
 		case REQUEST_VIDEO_STREAMING:
